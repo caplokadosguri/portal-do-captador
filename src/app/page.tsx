@@ -1,69 +1,60 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
 
-export default function Home() {
+import Link from 'next/link';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import Abertura, { DURACAO_ABERTURA_MS } from '@/components/Abertura';
+import { SemAcesso } from '@/components/Cabecalho';
+import { PERFIS, useMembro } from '@/lib/membro';
+
+export default function QuemEstaCaptando() {
+  const { carregando, membro, email } = useMembro();
+  // A abertura toca uma vez por sessão do navegador.
+  const vista = useSyncExternalStore(
+    () => () => undefined,
+    () => (sessionStorage.getItem('abertura-vista') ? 'sim' : 'nao'),
+    () => 'servidor',
+  );
+  const [terminou, setTerminou] = useState(false);
+
+  useEffect(() => {
+    if (vista !== 'nao') return;
+    const t = setTimeout(() => {
+      sessionStorage.setItem('abertura-vista', '1');
+      setTerminou(true);
+    }, DURACAO_ABERTURA_MS);
+    return () => clearTimeout(t);
+  }, [vista]);
+
+  if (vista === 'servidor') return null;
+  const abertura = vista === 'nao' && !terminou ? 'tocando' : 'pronta';
+
+  const visiveis = membro ? (membro.papel === 'admin' ? PERFIS : PERFIS.filter((p) => p.papel === membro.papel)) : [];
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <>
+      {abertura === 'tocando' && <Abertura />}
+      <div className={abertura === 'tocando' ? 'revela' : undefined}>
+        {!carregando && !membro ? (
+          <SemAcesso email={email} />
+        ) : (
+          <main className="perfis">
+            <h1>Quem está captando?</h1>
+            <div className="perfis-grade">
+              {visiveis.map((p) => (
+                <Link key={p.papel} href={p.rota} className="perfil">
+                  <span className="quadro" style={{ background: p.cor }}>
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke={p.tinta} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d={p.icone} />
+                    </svg>
+                  </span>
+                  {p.nome}
+                </Link>
+              ))}
+            </div>
+            {membro && <p className="suave pequeno">Conectado como {membro.nome}</p>}
+          </main>
+        )}
+      </div>
+    </>
   );
 }
