@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { AVIAO, LETRA_C, LETRA_D, LETRA_S, VOO_CAMINHO, VOO_ESCALAS, VOO_TEMPOS } from './logoPaths';
 import './abertura.css';
 
-export const DURACAO_ABERTURA_MS = 5300;
+export const DURACAO_ABERTURA_MS = 5600;
 
 // O voo usa animação nativa do SVG: o avião segue uma curva de verdade e é redesenhado
 // em vetor a cada quadro, então continua nítido mesmo quando cobre a tela.
-const VOO = { begin: '1.9s', dur: '2.6s', fill: 'freeze' } as const;
+const VOO = { begin: '1.9s', dur: '2.9s', fill: 'freeze' } as const;
 
 /** Abertura CASDflix: o avião voa em curvas, se aproxima até cobrir a tela e revela os perfis. */
 export default function Abertura() {
@@ -61,7 +61,15 @@ export default function Abertura() {
                   <g>
                     <animateTransform attributeName="transform" type="scale" values={VOO_ESCALAS} keyTimes={VOO_TEMPOS} {...VOO} />
                     <g>
-                      <animateTransform attributeName="transform" type="rotate" values="90;90" keyTimes="0;1" {...VOO} />
+                      <animateTransform
+                        attributeName="transform"
+                        type="rotate"
+                        values="90;90;-12.6"
+                        keyTimes="0;0.72;1"
+                        calcMode="spline"
+                        keySplines="0 0 1 1;0.45 0 0.55 1"
+                        {...VOO}
+                      />
                       <path d={AVIAO} fill="#F9B341" transform="scale(0.37011) translate(-760 -400)" />
                     </g>
                   </g>
