@@ -18,7 +18,7 @@ Especificação completa: https://claude.ai/artifact/KJminLaDe9KfCrHn6812mx
 Use o e-mail institucional da Captação em todas as contas.
 
 1. **Supabase**: crie um projeto em https://supabase.com (região São Paulo).
-   - Em *SQL Editor*, cole e rode `supabase/migrations/0001_estrutura.sql`.
+   - Em *SQL Editor*, cole e rode, nesta ordem, `supabase/migrations/0001_estrutura.sql` e `0002_funcoes_privadas.sql`.
    - Ainda no SQL Editor, cadastre o primeiro administrador:
      ```sql
      insert into membros (email, nome, papel) values ('seu-email@institucional', 'Seu nome', 'admin');
