@@ -39,9 +39,9 @@ export default function Abertura() {
                 x="1885"
                 y="540"
                 fill="#F9B341"
-                style={{ fontFamily: 'Montserrat, sans-serif', fontSize: 640, fontWeight: 400, letterSpacing: -8 }}
+                style={{ fontFamily: "'Bebas Neue', Impact, sans-serif", fontSize: 672, fontWeight: 400 }}
               >
-                flix
+                FLIX
               </text>
             </svg>
           </div>
@@ -61,15 +61,7 @@ export default function Abertura() {
                   <g>
                     <animateTransform attributeName="transform" type="scale" values={VOO_ESCALAS} keyTimes={VOO_TEMPOS} {...VOO} />
                     <g>
-                      <animateTransform
-                        attributeName="transform"
-                        type="rotate"
-                        values="90;90;-12.6"
-                        keyTimes="0;0.72;1"
-                        calcMode="spline"
-                        keySplines="0 0 1 1;0.45 0 0.55 1"
-                        {...VOO}
-                      />
+                      <animateTransform attributeName="transform" type="rotate" values="90;90" keyTimes="0;1" {...VOO} />
                       <path d={AVIAO} fill="#F9B341" transform="scale(0.37011) translate(-760 -400)" />
                     </g>
                   </g>

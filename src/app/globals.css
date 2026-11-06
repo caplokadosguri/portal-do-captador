@@ -68,7 +68,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cabecalho-dentro { max-width: 1200px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .cabecalho img { height: 34px; width: auto; display: block; }
 .cabecalho .marca { display: flex; align-items: center; gap: 4px; text-decoration: none; }
-.cabecalho .flix { color: var(--laranja-escuro); font-weight: 600; font-size: 22px; }
+.cabecalho .flix { color: var(--laranja-escuro); font-family: 'Bebas Neue', Impact, sans-serif; font-size: 30px; line-height: 1; }
 .cabecalho nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* Fileiras estilo Netflix */

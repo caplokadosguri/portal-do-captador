@@ -17,7 +17,7 @@ export default function Cabecalho({ membro }: { membro: Membro | null }) {
         <Link href="/" className="marca" aria-label="Voltar para os perfis">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/casd-logo.svg" alt="CASD" />
-          <span className="flix">flix</span>
+          <span className="flix">FLIX</span>
         </Link>
         <nav aria-label="Conta">
           {membro && <span className="suave pequeno" style={{ alignSelf: 'center' }}>{membro.nome}</span>}
