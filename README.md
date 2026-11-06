@@ -6,6 +6,10 @@ O piloto cobre o perfil **Doadores**: importação dos relatórios da Trackmob, 
 
 Especificação completa: https://claude.ai/artifact/KJminLaDe9KfCrHn6812mx
 
+**No ar:** https://portal-do-captador.vercel.app · Supabase: projeto `portal-do-captador` (organização CAP, São Paulo) · Vercel: time `cap-loka`. Cada push na `main` publica sozinho.
+
+O repositório é público (exigência da Vercel gratuita para repositórios de organização). Por isso: **nunca** coloque aqui chaves secretas, planilhas da Trackmob ou qualquer dado real de doador.
+
 ## Como funciona
 
 - **Next.js** (interface) hospedado na **Vercel**; **Supabase** (banco Postgres + login).
