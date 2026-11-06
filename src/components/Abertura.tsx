@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AVIAO, LETRA_C, LETRA_D, LETRA_S, VOO_CAMINHO, VOO_ESCALAS, VOO_TEMPOS } from './logoPaths';
+import { AVIAO, LETRA_C, LETRA_D, LETRA_S, VOO_CAMINHO, VOO_ESCALAS, VOO_RITMO, VOO_TEMPOS } from './logoPaths';
 import './abertura.css';
 
 export const DURACAO_ABERTURA_MS = 5900;
@@ -53,9 +53,9 @@ export default function Abertura() {
                     path={VOO_CAMINHO}
                     rotate="auto"
                     calcMode="spline"
-                    keyPoints="0;1"
-                    keyTimes="0;1"
-                    keySplines="0.2 0 1 1"
+                    keyPoints={VOO_RITMO.keyPoints}
+                    keyTimes={VOO_RITMO.keyTimes}
+                    keySplines={VOO_RITMO.keySplines}
                     {...VOO}
                   />
                   <g>
