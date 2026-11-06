@@ -1,16 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AVIAO, LETRA_C, LETRA_D, LETRA_S } from './logoPaths';
+import { useEffect, useRef, useState } from 'react';
+import { AVIAO, LETRA_C, LETRA_D, LETRA_S, VOO_CAMINHO, VOO_ESCALAS, VOO_TEMPOS } from './logoPaths';
 import './abertura.css';
 
 export const DURACAO_ABERTURA_MS = 5300;
 
+// O voo usa animação nativa do SVG: o avião segue uma curva de verdade e é redesenhado
+// em vetor a cada quadro, então continua nítido mesmo quando cobre a tela.
+const VOO = { begin: '1.9s', dur: '2.6s', fill: 'freeze' } as const;
+
 /** Abertura CASDflix: o avião voa em curvas, se aproxima até cobrir a tela e revela os perfis. */
 export default function Abertura() {
   const [escala, setEscala] = useState(1);
+  const voo = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
+    voo.current?.setCurrentTime(0); // alinha o relógio do voo com as animações CSS
     const ajustar = () => setEscala(Math.min(window.innerWidth / 1280, window.innerHeight / 720));
     ajustar();
     window.addEventListener('resize', ajustar);
@@ -40,11 +46,28 @@ export default function Abertura() {
             </svg>
           </div>
           <div className="ab-aviao-entra">
-            <div className="ab-aviao-voo">
-              <svg viewBox="455 8 474 634">
-                <path d={AVIAO} fill="#F9B341" />
-              </svg>
-            </div>
+            <svg ref={voo} viewBox="0 0 1280 720">
+              <g transform="translate(401.2 387.7)">
+                <g>
+                  <animateMotion
+                    path={VOO_CAMINHO}
+                    rotate="auto"
+                    calcMode="spline"
+                    keyPoints="0;1"
+                    keyTimes="0;1"
+                    keySplines="0.42 0 0.75 1"
+                    {...VOO}
+                  />
+                  <g>
+                    <animateTransform attributeName="transform" type="scale" values={VOO_ESCALAS} keyTimes={VOO_TEMPOS} {...VOO} />
+                    <g>
+                      <animateTransform attributeName="transform" type="rotate" values="90;90" keyTimes="0;1" {...VOO} />
+                      <path d={AVIAO} fill="#F9B341" transform="scale(0.37011) translate(-760 -400)" />
+                    </g>
+                  </g>
+                </g>
+              </g>
+            </svg>
           </div>
         </div>
       </div>
