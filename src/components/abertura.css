@@ -6,14 +6,12 @@
 .ab-letras,.ab-flix{transform-box:fill-box}
 .ab-letras{transform-origin:center;animation:ab-entra .7s cubic-bezier(.2,.7,.2,1) both,ab-sai .35s ease-in 1.9s forwards}
 .ab-flix{transform-origin:left center;animation:ab-flix .55s cubic-bezier(.2,.7,.2,1) .75s both,ab-sai .35s ease-in 1.9s forwards}
-.ab-aviao-entra{position:absolute;inset:0;pointer-events:none;animation:ab-aparece .6s ease-out .1s both}
-.ab-aviao-entra svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.ab-cobre{position:fixed;inset:0;z-index:11;background:#F9B341;opacity:0;animation:ab-cobre .15s linear 5s forwards}
-.revela{position:relative;z-index:20;clip-path:circle(0% at 50% 50%);animation:ab-revela .7s cubic-bezier(.3,0,.15,1) 5.15s forwards}
+.ab-aviao-camada{position:fixed;inset:0;z-index:30;pointer-events:none;animation:ab-aparece .6s ease-out .1s both}
+.ab-aviao-camada svg{display:block;width:100%;height:100%}
+.revela{position:relative;z-index:20;clip-path:inset(100% 0 0 0)}
 @keyframes ab-entra{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
 @keyframes ab-flix{from{opacity:0;transform:translateX(-70px)}to{opacity:1;transform:translateX(0)}}
 @keyframes ab-sai{to{opacity:0;transform:scale(.96)}}
 @keyframes ab-aparece{from{opacity:0}to{opacity:1}}
-@keyframes ab-cobre{to{opacity:1}}
-@keyframes ab-revela{to{clip-path:circle(150% at 50% 50%)}}
-@media (prefers-reduced-motion: reduce){.ab-fundo,.ab-cobre{display:none}.revela{clip-path:none;animation:none}}
+@keyframes ab-cortina{to{clip-path:inset(0 0 0 0)}}
+@media (prefers-reduced-motion: reduce){.ab-fundo,.ab-aviao-camada{display:none}.revela{clip-path:none;animation:none}}

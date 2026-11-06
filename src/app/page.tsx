@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import Abertura, { DURACAO_ABERTURA_MS } from '@/components/Abertura';
+import Abertura from '@/components/Abertura';
+import { geometriaVoo } from '@/components/aberturaGeometria';
 import { SemAcesso } from '@/components/Cabecalho';
 import { PERFIS, useMembro } from '@/lib/membro';
 
@@ -15,25 +16,34 @@ export default function QuemEstaCaptando() {
     () => 'servidor',
   );
   const [terminou, setTerminou] = useState(false);
+  // Calculada uma vez, no navegador, para o tamanho da tela.
+  const [geometria] = useState(() => (typeof window === 'undefined' ? null : geometriaVoo(window.innerWidth, window.innerHeight)));
 
   useEffect(() => {
     if (vista !== 'nao') return;
     const t = setTimeout(() => {
       sessionStorage.setItem('abertura-vista', '1');
       setTerminou(true);
-    }, DURACAO_ABERTURA_MS);
+    }, geometria?.duracaoTotalMs ?? 0);
     return () => clearTimeout(t);
-  }, [vista]);
+  }, [vista, geometria]);
 
-  if (vista === 'servidor') return null;
+  if (vista === 'servidor' || !geometria) return null;
   const abertura = vista === 'nao' && !terminou ? 'tocando' : 'pronta';
 
   const visiveis = membro ? (membro.papel === 'admin' ? PERFIS : PERFIS.filter((p) => p.papel === membro.papel)) : [];
 
   return (
     <>
-      {abertura === 'tocando' && <Abertura />}
-      <div className={abertura === 'tocando' ? 'revela' : undefined}>
+      {abertura === 'tocando' && <Abertura geometria={geometria} />}
+      <div
+        className={abertura === 'tocando' ? 'revela' : undefined}
+        style={
+          abertura === 'tocando'
+            ? { animation: `ab-cortina ${geometria.cortina.duracaoS.toFixed(3)}s linear ${geometria.cortina.inicioS.toFixed(3)}s forwards` }
+            : undefined
+        }
+      >
         {!carregando && !membro ? (
           <SemAcesso email={email} />
         ) : (

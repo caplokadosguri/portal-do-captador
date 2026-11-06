@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AVIAO, LETRA_C, LETRA_D, LETRA_S, VOO_CAMINHO, VOO_ESCALAS, VOO_RITMO, VOO_TEMPOS } from './logoPaths';
+import type { GeometriaVoo } from './aberturaGeometria';
+import { VOO_DURACAO_S, VOO_INICIO_S } from './aberturaGeometria';
+import { AVIAO, LETRA_C, LETRA_D, LETRA_S } from './logoPaths';
 import './abertura.css';
 
-export const DURACAO_ABERTURA_MS = 5900;
+// O voo usa animação nativa do SVG: o avião segue a curva de verdade e é redesenhado em vetor
+// a cada quadro. Fase 1: volta pela tela e sai por baixo. Some por um instante. Fase 2: volta
+// por baixo, no meio, subindo na vertical sem mudar de tamanho; a tela nova aparece atrás das asas.
+const VOO = { begin: `${VOO_INICIO_S}s`, dur: `${VOO_DURACAO_S}s`, fill: 'freeze' } as const;
 
-// O voo usa animação nativa do SVG: o avião segue uma curva de verdade e é redesenhado
-// em vetor a cada quadro, então continua nítido mesmo quando cobre a tela.
-const VOO = { begin: '1.9s', dur: '3.2s', fill: 'freeze' } as const;
-
-/** Abertura CASDflix: o avião voa em curvas, se aproxima até cobrir a tela e revela os perfis. */
-export default function Abertura() {
+export default function Abertura({ geometria }: { geometria: GeometriaVoo }) {
   const [escala, setEscala] = useState(1);
   const voo = useRef<SVGSVGElement>(null);
 
@@ -45,33 +45,32 @@ export default function Abertura() {
               </text>
             </svg>
           </div>
-          <div className="ab-aviao-entra">
-            <svg ref={voo} viewBox="0 0 1280 720">
-              <g transform="translate(401.2 387.7)">
-                <g>
-                  <animateMotion
-                    path={VOO_CAMINHO}
-                    rotate="auto"
-                    calcMode="spline"
-                    keyPoints={VOO_RITMO.keyPoints}
-                    keyTimes={VOO_RITMO.keyTimes}
-                    keySplines={VOO_RITMO.keySplines}
-                    {...VOO}
-                  />
-                  <g>
-                    <animateTransform attributeName="transform" type="scale" values={VOO_ESCALAS} keyTimes={VOO_TEMPOS} {...VOO} />
-                    <g>
-                      <animateTransform attributeName="transform" type="rotate" values="90;90" keyTimes="0;1" {...VOO} />
-                      <path d={AVIAO} fill="#F9B341" transform="scale(0.37011) translate(-760 -400)" />
-                    </g>
-                  </g>
-                </g>
-              </g>
-            </svg>
-          </div>
         </div>
       </div>
-      <div className="ab-cobre" aria-hidden="true" />
+      <div className="ab-aviao-camada" aria-hidden="true">
+        <svg ref={voo} viewBox={geometria.viewBox}>
+          <g transform="translate(401.2 387.7)">
+            <g>
+              <animateMotion
+                path={geometria.caminho}
+                rotate="auto"
+                calcMode="spline"
+                keyPoints={geometria.keyPoints}
+                keyTimes={geometria.keyTimes}
+                keySplines={geometria.keySplines}
+                {...VOO}
+              />
+              <g>
+                <animateTransform attributeName="transform" type="scale" values={geometria.escalas} keyTimes={geometria.tempos} {...VOO} />
+                <g>
+                  <animateTransform attributeName="transform" type="rotate" values="90;90" keyTimes="0;1" {...VOO} />
+                  <path d={AVIAO} fill="#F9B341" transform="scale(0.37011) translate(-760 -400)" />
+                </g>
+              </g>
+            </g>
+          </g>
+        </svg>
+      </div>
     </>
   );
 }
