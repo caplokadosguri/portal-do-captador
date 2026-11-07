@@ -2,7 +2,13 @@
 
 Área de trabalho da Captação de Recursos do CASD. Cada membro entra no seu perfil (Doadores, Editais, Parceiros, Eventos) e o diretor de Captação entra como administrador e vê tudo.
 
-O piloto cobre o perfil **Doadores**: importação dos relatórios da Trackmob, situação de pagamento, plano de doadores, trilha dos pontuais, mensagem pronta no WhatsApp e histórico de contatos. Editais, Parceiros e Eventos já têm tabelas no banco e uma tela "em breve".
+As telas internas seguem o visual da Netflix (tema escuro, banner de destaque e fileiras de cards).
+
+- **Doadores**: importação dos relatórios da Trackmob, situação de pagamento (fileiras por meses de atraso), plano de doadores, trilha dos pontuais, mensagem pronta no WhatsApp e histórico de contatos.
+- **Editais**: lançar e acompanhar editais (situação, aderência, prioridade, prazo, valor, fonte do recurso, abrangência), fileiras por prazo, prioridade, situação e abrangência, e vínculo com projetos.
+- **Projetos**: banco de projetos em fileiras por esfera (CASDvest, Casdinho, ambos).
+- **Parceiros e Eventos**: tabelas prontas e tela "em breve".
+- **Gerar planilha**: cada setor tem o botão. O .xlsx é montado no navegador e preenche o modelo do CASD se ele estiver em `public/modelos/` (veja o LEIAME de lá); senão sai uma planilha padrão. Na planilha de editais, "Dias restantes" é fórmula e continua certa no Drive. A planilha de doadores não leva celular, e-mail nem dados de pagamento.
 
 Especificação completa: https://claude.ai/artifact/KJminLaDe9KfCrHn6812mx
 
@@ -22,7 +28,7 @@ O repositório é público (exigência da Vercel gratuita para repositórios de 
 Use o e-mail institucional da Captação em todas as contas.
 
 1. **Supabase**: crie um projeto em https://supabase.com (região São Paulo).
-   - Em *SQL Editor*, cole e rode, nesta ordem, `supabase/migrations/0001_estrutura.sql` e `0002_funcoes_privadas.sql`.
+   - Em *SQL Editor*, cole e rode, nesta ordem, os arquivos de `supabase/migrations/` (`0001`, `0002`, `0003`…).
    - Ainda no SQL Editor, cadastre o primeiro administrador:
      ```sql
      insert into membros (email, nome, papel) values ('seu-email@institucional', 'Seu nome', 'admin');
@@ -46,7 +52,10 @@ Use o e-mail institucional da Captação em todas as contas.
 | Colunas importadas de cada relatório | `src/lib/relatorios.ts` |
 | Regras de situação de pagamento e motivo de falha | `src/lib/situacao.ts` |
 | Textos das mensagens | tabela `modelos_mensagem` no Supabase (variáveis `{nome}`, `{valor}`, `{meses}`) |
-| Regras de acesso | `supabase/migrations/0001_estrutura.sql` |
+| Opções de situação, níveis, abrangência e sugestões de fonte dos editais; fileiras de editais e projetos | `src/lib/editais.ts` |
+| Colunas de cada planilha exportada | `src/lib/exportacoes.ts` |
+| Modelos de planilha do CASD | `public/modelos/<setor>.xlsx` |
+| Regras de acesso | `supabase/migrations/` |
 
 ## Desenvolvimento
 

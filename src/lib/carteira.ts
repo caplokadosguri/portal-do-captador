@@ -155,5 +155,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
       titulo: 'Pontuais para convidar',
       itens: [...pontuais].sort((a, b) => Number(b.valorAlto) - Number(a.valorAlto) || nome(a).localeCompare(nome(b), 'pt-BR')),
     },
+    { chave: 'em_dia', titulo: 'Mensais em dia', itens: ordenar(visoes.filter((v) => v.situacao === 'em_dia')) },
+    { chave: 'cancelado', titulo: 'Cancelados', itens: ordenar(visoes.filter((v) => v.situacao === 'cancelado')) },
   ];
 }

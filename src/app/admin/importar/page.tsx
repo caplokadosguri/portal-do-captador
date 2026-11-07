@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Cabecalho, { Carregando, SemAcesso } from '@/components/Cabecalho';
+import { Carregando, SemAcesso } from '@/components/Cabecalho';
+import Tela from '@/components/Tela';
 import { useMembro } from '@/lib/membro';
 import { decodificar, lerRelatorio, ResultadoLeitura, separarDoacoes, TipoRelatorio } from '@/lib/relatorios';
 import { supabase } from '@/lib/supabase/cliente';
@@ -91,9 +92,8 @@ export default function Importar() {
   if (carregando) return <Carregando />;
   if (membro?.papel !== 'admin') return <SemAcesso email={email} />;
   return (
-    <>
-      <Cabecalho membro={membro} />
-      <main className="pagina pilha" style={{ gap: 20 }}>
+    <Tela membro={membro}>
+      <main className="pagina pilha pagina-escura" style={{ gap: 20 }}>
         <h1 style={{ fontSize: 28 }}>Importar relatórios da Trackmob</h1>
         <p className="suave" style={{ margin: 0 }}>
           Exporte os relatórios em CSV e importe aqui, de preferência toda semana. Importar de novo atualiza os doadores existentes
@@ -101,6 +101,6 @@ export default function Importar() {
         </p>
         {RELATORIOS.map((r) => <Bloco key={r.tipo} {...r} />)}
       </main>
-    </>
+    </Tela>
   );
 }

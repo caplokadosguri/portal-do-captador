@@ -13,7 +13,7 @@ grant usage on schema public to authenticated;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
 `)
-for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
+for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
 await db.exec(`
 insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('ex@casd.org','Ex','doadores',false,now());
 insert into doadores (id,nome) values ('D1','Fulano');
@@ -41,7 +41,11 @@ const casos = [
   ['doa@casd.org', 'select count(*)::int n from projetos'],
   ['doa@casd.org', 'select count(*)::int n from editais'],
   ['edi@casd.org', 'select count(*)::int n from editais'],
-  ['edi@casd.org', "insert into editais (nome) values ('x') returning id"],
+  ['edi@casd.org', "insert into editais (nome, situacao) values ('x','em_escrita') returning situacao, criado_por"],
+  ['edi@casd.org', "update editais set situacao='em_analise' where nome='Edital A' returning situacao"],
+  ['edi@casd.org', "delete from editais where nome='Edital A' returning id"],
+  ['doa@casd.org', "insert into editais (nome) values ('y') returning id"],
+  ['edi@casd.org', "insert into editais (nome, situacao) values ('z','inventada') returning id"],
   ['edi@casd.org', "insert into projetos (titulo) values ('Novo') returning titulo"],
   ['doa@casd.org', 'select count(*)::int n from acessos'],
   ['doa@casd.org', "insert into acessos (doador_id, acao) values ('D1','abriu_ficha')"],['admin@casd.org','select membro, acao from acessos'],

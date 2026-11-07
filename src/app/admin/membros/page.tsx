@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Cabecalho, { Carregando, SemAcesso } from '@/components/Cabecalho';
+import { Carregando, SemAcesso } from '@/components/Cabecalho';
+import Tela from '@/components/Tela';
 import { Membro, Papel, PERFIS, useMembro } from '@/lib/membro';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -39,9 +40,8 @@ export default function Membros() {
   }
 
   return (
-    <>
-      <Cabecalho membro={membro} />
-      <main className="pagina pilha" style={{ gap: 20 }}>
+    <Tela membro={membro}>
+      <main className="pagina pilha pagina-escura" style={{ gap: 20 }}>
         <h1 style={{ fontSize: 28 }}>Membros e perfis</h1>
         <p className="suave" style={{ margin: 0 }}>Quando alguém sair da equipe, desative o acesso no mesmo dia.</p>
         <form className="cartao grade-2" onSubmit={adicionar}>
@@ -82,6 +82,6 @@ export default function Membros() {
           </table>
         </div>
       </main>
-    </>
+    </Tela>
   );
 }
