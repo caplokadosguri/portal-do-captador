@@ -175,7 +175,7 @@ export function exportarProjetos(projetos: Projeto[], editais: Edital[], inscric
 
 export interface ContatoDoador { doador_id: string; membro: string; canal: string; motivo: string; resultado: string | null; nota: string | null; criado_em: string }
 
-interface LinhaInadimplente { v: VisaoDoador; contatos: ContatoDoador[]; responsavel: string | null; regularizado: boolean }
+interface LinhaInadimplente { v: VisaoDoador; contatos: ContatoDoador[]; responsavel: string | null; regularizado: boolean; dadosDe: string | null }
 
 const STATUS_DA_CONVERSA: Record<string, string> = {
   lembrete_1: 'Contato iniciado',
@@ -224,6 +224,13 @@ export const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
     depoisDe: 'Inadimplente desde',
     tipo: 'moeda',
     valor: (l) => (!l.regularizado && l.v.mesesAtraso && l.v.principal?.valor ? l.v.mesesAtraso * l.v.principal.valor : null),
+  },
+  {
+    titulo: 'Pagamentos conferidos em',
+    depoisDe: 'Valor em aberto',
+    tipo: 'data',
+    // Data da importação da Trackmob: antes de cobrar, conferir se não pagou depois disso.
+    valor: (l) => l.dadosDe,
   },
   {
     titulo: 'Contexto prévio relevante',
@@ -294,6 +301,7 @@ export function exportarInadimplentes(
   contatos: ContatoDoador[],
   nomeDoMembro: (email: string) => string,
   hoje: string,
+  dadosDe: string | null = null,
 ): Exportacao {
   const cobrancasDe = (id: string, dias: number) =>
     contatos
@@ -302,7 +310,7 @@ export function exportarInadimplentes(
   const linha = (v: VisaoDoador, regularizado: boolean): LinhaInadimplente => {
     const meus = cobrancasDe(v.doador.id, regularizado ? 60 : 180).slice(-4);
     const resp = v.rel?.responsavel ?? meus[0]?.membro ?? null;
-    return { v, contatos: meus, responsavel: resp ? nomeDoMembro(resp) : null, regularizado };
+    return { v, contatos: meus, responsavel: resp ? nomeDoMembro(resp) : null, regularizado, dadosDe };
   };
   const nome = (v: VisaoDoador) => v.doador.nome ?? '';
   const atrasados = visoes

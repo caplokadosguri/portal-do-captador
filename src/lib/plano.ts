@@ -27,3 +27,13 @@ export const VALOR_ALTO_PONTUAL = 500;
 
 /** Convites para doação mensal antes de o pontual ficar só com a newsletter (PENDENTE). */
 export const MAX_CONVITES_PONTUAL = 3;
+
+/**
+ * Dias depois do vencimento antes de uma cobrança falha contar como atraso.
+ * A Trackmob tenta cobrar de novo nesse intervalo; antes disso não se cobra
+ * ninguém. PENDENTE: confirmar com a Trackmob o prazo das novas tentativas.
+ */
+export const DIAS_DE_TOLERANCIA = 7;
+
+/** Dados de pagamento mais velhos que isto pedem conferência na Trackmob antes de cobrar. */
+export const DIAS_PARA_CONFERIR = 3;

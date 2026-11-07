@@ -42,7 +42,8 @@ function motivoDoContexto(v: VisaoDoador): string {
   return 'plano';
 }
 
-export default function FichaDoador({ visao, modelos, aoFechar, aoSalvar }: {
+export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalvar }: {
+  dadosDe?: string | null;
   visao: VisaoDoador;
   modelos: Modelo[];
   aoFechar: () => void;
@@ -168,6 +169,14 @@ export default function FichaDoador({ visao, modelos, aoFechar, aoSalvar }: {
 
       <div className="ficha-corpo">
         {aviso && <p className={`aviso ${aviso.tipo}`} role="status">{aviso.texto}</p>}
+
+        {visao.situacao.startsWith('atraso') && (
+          <p className="aviso" role="note">
+            <strong>Antes de cobrar, confira na Trackmob se a doação já foi paga.</strong>{' '}
+            Os dados de pagamento são da importação de {dadosDe ? formatarData(dadosDe) : 'data desconhecida'}
+            {visao.atrasoDesde ? `; em aberto desde ${formatarData(visao.atrasoDesde)}` : ''}. Quem voltou a pagar depois de uma falha não aparece como atrasado.
+          </p>
+        )}
 
         <section className="grade-2 pequeno">
           <div className="cartao pilha" style={{ gap: 6 }}>

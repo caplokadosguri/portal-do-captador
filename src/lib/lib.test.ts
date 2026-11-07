@@ -67,11 +67,31 @@ const cob = (id: string, vencimento: string, status: string, erro: string | null
 describe('situação de pagamento', () => {
   const hoje = '2026-11-06';
   it('conta meses seguidos sem pagamento', () => {
+    const dia20 = '2026-11-20';
     const cobrancas = [cob('1', '2026-08-05', 'Paga'), cob('2', '2026-09-05', 'Não paga'), cob('3', '2026-10-05', 'Recusada'), cob('4', '2026-11-05', 'Recusada', 'Cartão vencido')];
-    expect(situacao(base, cobrancas, hoje)).toBe('atraso_3');
-    expect(situacao(base, cobrancas.slice(0, 2), hoje)).toBe('atraso_1');
-    expect(situacao(base, [cob('1', '2026-11-05', 'Paga')], hoje)).toBe('em_dia');
+    expect(situacao(base, cobrancas, dia20)).toBe('atraso_3');
+    expect(situacao(base, cobrancas.slice(0, 2), dia20)).toBe('atraso_1');
+    expect(situacao(base, [cob('1', '2026-11-05', 'Paga')], dia20)).toBe('em_dia');
     expect(motivoFalha(cobrancas, 'A1')).toEqual({ motivo: 'atualizar_cartao', mensagem: 'Cartão vencido' });
+  });
+  it('quem falhou em março mas pagou abril e maio está em dia (não é cobrado)', () => {
+    const c = [cob('1', '2026-02-05', 'Paga'), cob('2', '2026-03-05', 'Recusada', 'Saldo insuficiente'), cob('3', '2026-04-05', 'Paga'), cob('4', '2026-05-05', 'Paga')];
+    expect(situacao(base, c, '2026-05-20')).toBe('em_dia');
+    expect(motivoFalha(c, 'A1')).toBeNull();
+  });
+  it('nova tentativa paga no mesmo mês apaga a falha', () => {
+    const c = [cob('1', '2026-10-05', 'Recusada', 'Saldo insuficiente'), cob('2', '2026-10-09', 'Paga')];
+    expect(situacao(base, c, '2026-11-01')).toBe('em_dia');
+  });
+  it('não cobra antes de acabar o prazo de novas tentativas', () => {
+    const c = [cob('1', '2026-10-05', 'Paga'), cob('2', '2026-11-03', 'Recusada')];
+    expect(situacao(base, c, '2026-11-06')).toBe('em_dia');
+    expect(situacao(base, c, '2026-11-12')).toBe('atraso_1');
+  });
+  it('na dúvida entre os relatórios, não cobra', () => {
+    const c = [cob('1', '2026-09-05', 'Paga'), cob('2', '2026-10-05', 'Recusada')];
+    expect(situacao({ ...base, status_ultima_cobranca: 'Paga' }, c, hoje)).toBe('em_dia');
+    expect(situacao({ ...base, ultima_cobranca_paga: '2026-10-20' }, c, hoje)).toBe('em_dia');
   });
   it('ignora cobranças que ainda não venceram', () => {
     expect(situacao(base, [cob('1', '2026-10-05', 'Paga'), cob('2', '2026-12-05', 'Pendente')], hoje)).toBe('em_dia');

@@ -1,7 +1,7 @@
 // Regras de negócio calculadas a partir dos dados da Trackmob.
 
-import { CHECKPOINTS, Checkpoint, INICIO_DO_PLANO, INTERVALO_DEPOIS } from './plano';
-import { mesesEntre, normalizarTitulo, somarMeses } from './texto';
+import { CHECKPOINTS, Checkpoint, DIAS_DE_TOLERANCIA, INICIO_DO_PLANO, INTERVALO_DEPOIS } from './plano';
+import { diasEntre, mesesEntre, normalizarTitulo, somarMeses } from './texto';
 
 export interface Doacao {
   id: string;
@@ -25,6 +25,8 @@ export interface Cobranca {
   pago_em: string | null;
   status: string | null;
   mensagem_erro: string | null;
+  competencia?: string | null;
+  importado_em?: string | null;
 }
 
 export type Situacao = 'em_dia' | 'atraso_1' | 'atraso_2' | 'atraso_3' | 'pontual' | 'cancelado' | 'sem_dados';
@@ -66,36 +68,78 @@ export function doacaoPrincipal(doacoes: Doacao[]): Doacao | null {
  * Meses seguidos sem pagamento, contando da cobrança vencida mais recente para trás.
  * Usa o relatório de cobranças; sem ele, estima pela "Última cobrança paga".
  */
-export function mesesEmAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: string): number | null {
-  const vencidas = cobrancas
-    .filter((c) => c.doacao_id === doacao.id && c.vencimento && c.vencimento <= hoje)
-    .sort((a, b) => b.vencimento!.localeCompare(a.vencimento!));
-  if (vencidas.length) {
-    let n = 0;
-    for (const c of vencidas) {
-      if (cobrancaPaga(c)) break;
-      n++;
-    }
-    return n;
+/** "03/2026", "2026-03", "2026-03-10" → "2026-03". */
+export function mesDaCompetencia(competencia: string | null | undefined, vencimento: string | null): string | null {
+  const t = (competencia ?? '').trim();
+  let m = /^(\d{1,2})[/-](\d{4})/.exec(t);
+  if (m) return `${m[2]}-${m[1].padStart(2, '0')}`;
+  m = /^(\d{4})[/-](\d{1,2})/.exec(t);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}`;
+  return vencimento ? vencimento.slice(0, 7) : null;
+}
+
+interface MesCobrado {
+  mes: string;
+  vencimento: string;
+  paga: boolean;
+}
+
+/**
+ * Os meses cobrados da doação, do mais recente para o mais antigo. Várias
+ * tentativas no mesmo mês (a Trackmob tenta de novo quando falha) contam como
+ * um mês só: se qualquer tentativa foi paga, o mês está pago. Cobranças que
+ * venceram há menos de DIAS_DE_TOLERANCIA ainda não contam (podem ser
+ * retentadas).
+ */
+function mesesCobrados(doacao: Doacao, cobrancas: Cobranca[], hoje: string): MesCobrado[] {
+  const meses = new Map<string, MesCobrado>();
+  for (const c of cobrancas) {
+    if (c.doacao_id !== doacao.id || !c.vencimento || diasEntre(c.vencimento, hoje) < DIAS_DE_TOLERANCIA) continue;
+    const mes = mesDaCompetencia(c.competencia, c.vencimento)!;
+    const m = meses.get(mes) ?? { mes, vencimento: c.vencimento, paga: false };
+    if (c.vencimento < m.vencimento) m.vencimento = c.vencimento;
+    if (cobrancaPaga(c)) m.paga = true;
+    meses.set(mes, m);
   }
+  return [...meses.values()].sort((a, b) => b.mes.localeCompare(a.mes));
+}
+
+/**
+ * Meses seguidos sem pagamento, contando do mês mais recente para trás.
+ * Quem falhou em março mas pagou abril e maio está EM DIA: a contagem para no
+ * primeiro mês pago. Na dúvida, não cobra:
+ * - se o relatório de doações diz que a última cobrança foi paga, está em dia;
+ * - se houve pagamento (última cobrança paga) depois do vencimento de um mês
+ *   em aberto, esse mês não conta.
+ */
+function sequenciaEmAberto(doacao: Doacao, cobrancas: Cobranca[], hoje: string): MesCobrado[] | null {
+  const meses = mesesCobrados(doacao, cobrancas, hoje);
+  if (!meses.length) return null;
+  if (doacao.status_ultima_cobranca && cobrancaPaga({ pago_em: null, status: doacao.status_ultima_cobranca })) return [];
+  const emAberto: MesCobrado[] = [];
+  for (const m of meses) {
+    if (m.paga) break;
+    if (doacao.ultima_cobranca_paga && doacao.ultima_cobranca_paga >= m.vencimento) break;
+    emAberto.push(m);
+  }
+  return emAberto;
+}
+
+export function mesesEmAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: string): number | null {
+  const seq = sequenciaEmAberto(doacao, cobrancas, hoje);
+  if (seq) return seq.length;
+  if (doacao.status_ultima_cobranca && cobrancaPaga({ pago_em: null, status: doacao.status_ultima_cobranca })) return 0;
   if (doacao.ultima_cobranca_paga) return Math.max(0, mesesEntre(doacao.ultima_cobranca_paga, hoje) - 1);
   return null;
 }
 
 /**
- * Desde quando está sem pagar: vencimento da cobrança mais antiga da sequência
- * atual de cobranças não pagas. `null` se estiver em dia ou sem dados.
+ * Desde quando está sem pagar: vencimento do mês mais antigo da sequência
+ * atual em aberto. `null` se estiver em dia ou sem dados.
  */
 export function inicioDoAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: string): string | null {
-  const vencidas = cobrancas
-    .filter((c) => c.doacao_id === doacao.id && c.vencimento && c.vencimento <= hoje)
-    .sort((a, b) => b.vencimento!.localeCompare(a.vencimento!));
-  let inicio: string | null = null;
-  for (const c of vencidas) {
-    if (cobrancaPaga(c)) break;
-    inicio = c.vencimento;
-  }
-  if (inicio || vencidas.length) return inicio;
+  const seq = sequenciaEmAberto(doacao, cobrancas, hoje);
+  if (seq) return seq.length ? seq[seq.length - 1].vencimento : null;
   if (doacao.ultima_cobranca_paga && mesesEntre(doacao.ultima_cobranca_paga, hoje) > 1) return somarMeses(doacao.ultima_cobranca_paga, 1);
   return null;
 }
@@ -116,8 +160,11 @@ export type MotivoFalha = 'atualizar_cartao' | 'lembrete' | 'verificar';
 
 /** Lê a "Mensagem de erro" da última cobrança não paga para sugerir a abordagem. */
 export function motivoFalha(cobrancas: Cobranca[], doacaoId: string): { motivo: MotivoFalha; mensagem: string | null } | null {
-  const falha = cobrancas
-    .filter((c) => c.doacao_id === doacaoId && !cobrancaPaga(c))
+  // Só as tentativas depois do último pagamento: uma falha antiga já resolvida não conta.
+  const daDoacao = cobrancas.filter((c) => c.doacao_id === doacaoId && c.vencimento);
+  const ultimaPaga = daDoacao.filter(cobrancaPaga).reduce<string>((m, c) => (c.vencimento! > m ? c.vencimento! : m), '');
+  const falha = daDoacao
+    .filter((c) => !cobrancaPaga(c) && c.vencimento! > ultimaPaga)
     .sort((a, b) => (b.vencimento ?? '').localeCompare(a.vencimento ?? ''))[0];
   if (!falha) return null;
   const s = normalizarTitulo(falha.mensagem_erro ?? '');

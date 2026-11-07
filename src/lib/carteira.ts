@@ -56,6 +56,8 @@ export interface VisaoDoador {
 
 export interface Carteira {
   hoje: string;
+  /** Data da importação mais recente das cobranças (o quão atuais são os dados de pagamento). */
+  dadosDe: string | null;
   visoes: VisaoDoador[];
   modelos: Modelo[];
 }
@@ -67,7 +69,7 @@ export async function carregarCarteira(): Promise<Carteira> {
   const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos] = await Promise.all([
     buscarTudo<Doador>((a, b) => sb.from('doadores').select('*').order('id').range(a, b)),
     buscarTudo<Doacao>((a, b) => sb.from('doacoes').select('*').order('id').range(a, b)),
-    buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,vencimento,pago_em,status,mensagem_erro').gte('vencimento', desde).order('id').range(a, b)),
+    buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,competencia,vencimento,pago_em,status,mensagem_erro,importado_em').gte('vencimento', desde).order('id').range(a, b)),
     buscarTudo<Relacionamento>((a, b) => sb.from('relacionamento').select('*').order('doador_id').range(a, b)),
     buscarTudo<Brinde>((a, b) => sb.from('brindes').select('*').order('id').range(a, b)),
     buscarTudo<Pontual>((a, b) => sb.from('trilha_pontual').select('*').order('doador_id').range(a, b)),
@@ -112,7 +114,8 @@ export async function carregarCarteira(): Promise<Carteira> {
     };
   });
 
-  return { hoje, visoes, modelos };
+  const dadosDe = cobrancas.reduce<string | null>((m, c) => (c.importado_em && (!m || c.importado_em > m) ? c.importado_em : m), null);
+  return { hoje, visoes, modelos, dadosDe: dadosDe ? dadosDe.slice(0, 10) : null };
 }
 
 export interface Fileira {

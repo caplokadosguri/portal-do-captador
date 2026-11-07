@@ -10,6 +10,8 @@ import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/c
 import { formatarData, formatarReais } from '@/lib/contato';
 import { ContatoDoador, exportarCarteira, exportarInadimplentes } from '@/lib/exportacoes';
 import { gerarPlanilha } from '@/lib/planilha';
+import { DIAS_PARA_CONFERIR } from '@/lib/plano';
+import { diasEntre } from '@/lib/texto';
 import { buscarTudo, supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { NOME_SITUACAO, Situacao } from '@/lib/situacao';
@@ -37,7 +39,7 @@ async function prepararInadimplentes(carteira: Carteira | null) {
   );
   const { data: membros } = await sb.from('membros').select('email, nome');
   const nomes = new Map((membros ?? []).map((m: { email: string; nome: string }) => [m.email, m.nome]));
-  return exportarInadimplentes(carteira?.visoes ?? [], contatos, (e) => nomes.get(e) ?? e, carteira?.hoje ?? '');
+  return exportarInadimplentes(carteira?.visoes ?? [], contatos, (e) => nomes.get(e) ?? e, carteira?.hoje ?? '', carteira?.dadosDe ?? null);
 }
 
 function detalhe(v: VisaoDoador): string {
@@ -79,6 +81,7 @@ export default function Doadores() {
   if (!membro || !podeVer(membro, 'doadores')) return <SemAcesso email={email} />;
 
   const visaoAberta = carteira?.visoes.find((v) => v.doador.id === aberto) ?? null;
+  const desatualizado = !!carteira && carteira.visoes.length > 0 && (!carteira.dadosDe || diasEntre(carteira.dadosDe, carteira.hoje) > DIAS_PARA_CONFERIR);
   const contagem = (s: Situacao) => carteira?.visoes.filter((v) => v.situacao === s).length ?? 0;
   const atrasados = contagem('atraso_1') + contagem('atraso_2') + contagem('atraso_3');
   const mensal = carteira?.visoes.filter((v) => v.situacao === 'em_dia').reduce((s, v) => s + (v.principal?.valor ?? 0), 0) ?? 0;
@@ -118,6 +121,7 @@ export default function Doadores() {
                 `${atrasados} em atraso`,
                 `${contagem('pontual')} pontuais`,
                 `${formatarReais(mensal)} por mês`,
+                carteira.dadosDe ? `pagamentos de ${formatarData(carteira.dadosDe)}` : null,
               ]
             : []
         }
@@ -159,6 +163,12 @@ export default function Doadores() {
         </Ferramentas>
 
         {erro && <p className="aviso erro">Erro ao carregar: {erro}</p>}
+        {carteira && desatualizado && (
+          <p className="aviso" role="note">
+            <strong>Os dados de pagamento são de {carteira.dadosDe ? formatarData(carteira.dadosDe) : 'uma data desconhecida'}.</strong>{' '}
+            Antes de cobrar alguém, confira na Trackmob se já pagou, ou peça à diretoria uma importação nova dos relatórios.
+          </p>
+        )}
 
         {busca.trim().length >= 2 && (
           <Fileira titulo="Resultado da busca" quantidade={encontrados.length} vazio="Ninguém encontrado.">
@@ -182,6 +192,7 @@ export default function Doadores() {
           key={visaoAberta.doador.id}
           visao={visaoAberta}
           modelos={carteira.modelos}
+          dadosDe={carteira.dadosDe}
           aoFechar={() => setAberto(null)}
           aoSalvar={salvou}
         />
