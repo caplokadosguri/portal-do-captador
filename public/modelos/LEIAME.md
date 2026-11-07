@@ -1,16 +1,29 @@
 # Modelos de planilha do CASD
 
-Coloque aqui o modelo de cada setor, **só com o cabeçalho** (sem dados reais:
-esta pasta é pública e o repositório também):
+Versões **limpas** (só cabeçalho, fórmulas, cores e listas; sem dados) dos
+modelos enviados pela diretoria. Esta pasta é pública, como o repositório:
+nunca coloque aqui uma planilha com dados.
 
-- `editais.xlsx`
-- `projetos.xlsx`
-- `doadores.xlsx`
-- `parceiros.xlsx`
-- `eventos.xlsx`
+| Arquivo | Abas que o portal preenche | Setor |
+| --- | --- | --- |
+| `editais.xlsx` (Monitoramento de Editais) | Controle de Editais, Descartados, Log semanal (acrescenta uma linha) | Editais |
+| `abordagem.xlsx` (Plano de abordagem) | Inadimplentes (bloco do mês atual) | Doadores |
+| `abordagem.xlsx` (Plano de abordagem) | Parcerias e Doações PJ | Parceiros |
 
-O botão "Gerar planilha" de cada tela procura o cabeçalho nas 20 primeiras
-linhas da primeira aba, casa as colunas pelo nome (aceita variações como
-"Edital", "Financiador", "Data limite", "Valor (R$)") e escreve os dados logo
-abaixo, mantendo título, cores e formatação do modelo. Colunas do modelo que o
-portal não conhece ficam em branco. Sem modelo, sai uma planilha padrão.
+A aba "Resumo" e a "Leads e Doações PF" não são mexidas.
+
+Como funciona (`src/lib/xlsxModelo.ts`): o portal abre o .xlsx e troca só as
+linhas de dados das abas acima, direto no XML. Título, cores, formatação
+condicional, listas suspensas, tabelas, logo e as fórmulas do modelo
+("Dias restantes", "Ordem") continuam iguais. As colunas são achadas pelo nome
+do cabeçalho, então reordenar colunas no modelo não quebra nada.
+
+"Atualizar arquivo do Drive": baixe a planilha do Drive como .xlsx, escolha no
+portal e ele devolve o mesmo arquivo com as abas dele atualizadas e o resto
+intacto. No Google Planilhas: Arquivo › Importar › Fazer upload ›
+"Substituir planilha" (mantém o mesmo link). Antes de atualizar, o portal
+confere se o arquivo tem editais ou empresas que ainda não estão nele; se tiver,
+pede para usar "Importar do Drive" primeiro.
+
+Para trocar um modelo: gere a versão limpa (sem dados) e substitua o arquivo
+aqui, com o mesmo nome.

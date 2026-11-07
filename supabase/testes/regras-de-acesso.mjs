@@ -13,9 +13,9 @@ grant usage on schema public to authenticated;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
 `)
-for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
+for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
 await db.exec(`
-insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('ex@casd.org','Ex','doadores',false,now());
+insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('par@casd.org','Par','parceiros',true,now()),('ex@casd.org','Ex','doadores',false,now());
 insert into doadores (id,nome) values ('D1','Fulano');
 insert into doacoes (id,doador_id,valor) values ('X1','D1',50);
 insert into projetos (titulo) values ('Projeto A');
@@ -41,8 +41,14 @@ const casos = [
   ['doa@casd.org', 'select count(*)::int n from projetos'],
   ['doa@casd.org', 'select count(*)::int n from editais'],
   ['edi@casd.org', 'select count(*)::int n from editais'],
-  ['edi@casd.org', "insert into editais (nome, situacao) values ('x','em_escrita') returning situacao, criado_por"],
-  ['edi@casd.org', "update editais set situacao='em_analise' where nome='Edital A' returning situacao"],
+  ['edi@casd.org', "insert into editais (nome, situacao) values ('x','escrevendo') returning situacao, criado_por"],
+  ['edi@casd.org', "update editais set situacao='inscrito', aderencia='a_revisar' where nome='Edital A' returning situacao"],
+  ['par@casd.org', "insert into parcerias (organizacao) values ('Empresa X') returning status, criado_por"],
+  ['par@casd.org', "update parcerias set status='reuniao_marcada' returning status"],
+  ['par@casd.org', "delete from parcerias returning id"],
+  ['doa@casd.org', 'select count(*)::int n from parcerias'],
+  ['edi@casd.org', "insert into parcerias (organizacao) values ('Y') returning id"],
+  ['admin@casd.org', 'select count(*)::int n from parcerias'],
   ['edi@casd.org', "delete from editais where nome='Edital A' returning id"],
   ['doa@casd.org', "insert into editais (nome) values ('y') returning id"],
   ['edi@casd.org', "insert into editais (nome, situacao) values ('z','inventada') returning id"],

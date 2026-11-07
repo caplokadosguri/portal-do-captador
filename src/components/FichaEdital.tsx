@@ -3,8 +3,8 @@
 import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { formatarReais } from '@/lib/contato';
 import {
-  ABRANGENCIAS, corSituacao, diasRestantes, Edital, FONTES_SUGERIDAS, Inscricao, NIVEIS, Projeto, SITUACOES,
-  textoDiasRestantes,
+  ABRANGENCIAS, ADERENCIAS, corSituacao, diasRestantesDoEdital, Edital, FONTES_SUGERIDAS, Inscricao, NIVEIS, Projeto,
+  SITUACOES, textoDiasRestantes,
 } from '@/lib/editais';
 import { supabase } from '@/lib/supabase/cliente';
 import { hojeIso } from '@/lib/texto';
@@ -12,8 +12,8 @@ import { hojeIso } from '@/lib/texto';
 type Rascunho = Record<keyof Omit<Edital, 'id' | 'criado_em' | 'atualizado_em'>, string>;
 
 const VAZIO: Rascunho = {
-  nome: '', organizador: '', situacao: 'novo', aderencia: '', prioridade: '', abertura: '', prazo: '', valor: '',
-  fonte_recurso: '', abrangencia: '', link: '', observacao: '',
+  nome: '', organizador: '', situacao: 'aberto', aderencia: '', prioridade: '', abertura: '', prazo: '', valor: '',
+  fonte_recurso: '', abrangencia: '', link: '', observacao: '', responsavel: '', fonte_divulgacao: '', motivo_descarte: '',
 };
 
 function paraRascunho(e: Edital | null): Rascunho {
@@ -42,6 +42,9 @@ function paraBanco(r: Rascunho) {
     abrangencia: t(r.abrangencia),
     link: t(r.link),
     observacao: t(r.observacao),
+    responsavel: t(r.responsavel),
+    fonte_divulgacao: t(r.fonte_divulgacao),
+    motivo_descarte: r.situacao === 'descartado' ? t(r.motivo_descarte) : null,
   };
 }
 
@@ -74,7 +77,7 @@ export default function FichaEdital({
   }, []);
 
   const muda = (k: keyof Rascunho) => (ev: { target: { value: string } }) => setR((x) => ({ ...x, [k]: ev.target.value }));
-  const dias = diasRestantes(r.prazo || null, hojeIso());
+  const dias = diasRestantesDoEdital({ situacao: r.situacao, prazo: r.prazo || null } as Edital, hojeIso());
   const vinculados = edital ? inscricoes.filter((i) => i.edital_id === edital.id) : [];
   const livres = projetos.filter((p) => !vinculados.some((i) => i.projeto_id === p.id));
   const titulo = r.nome.trim() || (edital ? edital.nome : 'Novo edital');
@@ -127,7 +130,7 @@ export default function FichaEdital({
               <span className="ponto" style={{ background: corSituacao(r.situacao as Edital['situacao']) }} />
               {SITUACOES.find((s) => s.valor === r.situacao)?.rotulo}
             </span>
-            <span>{textoDiasRestantes(dias)}{dias !== null && dias > 0 ? ' restantes' : ''}</span>
+            {dias !== null && <span>{textoDiasRestantes(dias)}{dias > 0 ? ' restantes' : ''}</span>}
             {r.valor && <span>{formatarReais(Number(r.valor))}</span>}
             {r.link && (
               <a href={r.link} target="_blank" rel="noopener noreferrer">Abrir edital ↗</a>
@@ -153,7 +156,7 @@ export default function FichaEdital({
             <label className="campo">Aderência ao CASD
               <select value={r.aderencia} onChange={muda('aderencia')}>
                 <option value="">—</option>
-                {NIVEIS.map((n) => <option key={n.valor} value={n.valor}>{n.rotulo}</option>)}
+                {ADERENCIAS.map((n) => <option key={n.valor} value={n.valor}>{n.rotulo}</option>)}
               </select>
             </label>
             <label className="campo">Prioridade
@@ -166,7 +169,7 @@ export default function FichaEdital({
           <div className="grade-3">
             <label className="campo">Abertura<input type="date" value={r.abertura} onChange={muda('abertura')} /></label>
             <label className="campo">Prazo<input type="date" value={r.prazo} onChange={muda('prazo')} /></label>
-            <label className="campo">Dias restantes<input value={textoDiasRestantes(dias)} readOnly tabIndex={-1} aria-readonly="true" /></label>
+            <label className="campo">Dias restantes<input value={dias === null ? '—' : textoDiasRestantes(dias)} readOnly tabIndex={-1} aria-readonly="true" /></label>
           </div>
           <div className="grade-3">
             <label className="campo">Valor / orçamento (R$)
@@ -183,7 +186,14 @@ export default function FichaEdital({
               </select>
             </label>
           </div>
-          <label className="campo">Link<input type="url" value={r.link} onChange={muda('link')} placeholder="https://" /></label>
+          <div className="grade-3">
+            <label className="campo">Link<input type="url" value={r.link} onChange={muda('link')} placeholder="https://" /></label>
+            <label className="campo">Responsável<input value={r.responsavel} onChange={muda('responsavel')} placeholder="Quem cuida deste edital" /></label>
+            <label className="campo">Fonte (Mais Impacto)<input value={r.fonte_divulgacao} onChange={muda('fonte_divulgacao')} placeholder="Onde o edital foi encontrado" /></label>
+          </div>
+          {r.situacao === 'descartado' && (
+            <label className="campo">Motivo da exclusão<input value={r.motivo_descarte} onChange={muda('motivo_descarte')} placeholder="Por que fica fora do monitoramento" /></label>
+          )}
           <label className="campo">Observação<textarea value={r.observacao} onChange={muda('observacao')} /></label>
         </fieldset>
 

@@ -229,7 +229,7 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 /* Barra de ferramentas */
 .ferramentas {
   position: relative; z-index: 2; margin-top: -24px; margin-bottom: 18px;
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;
 }
 .ferramentas .campo { flex: 1 1 240px; max-width: 360px; }
 .ferramentas .resumo { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--tinta-suave); font-size: 14px; margin-left: auto; align-self: center; }
@@ -316,9 +316,11 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #1f3a46; font-size: 13px; }
 .chip button { border: 0; background: none; color: var(--tinta-suave); cursor: pointer; font-size: 15px; padding: 0 2px; }
 .ponto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
-.botao-planilha { display: inline-flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.botao-planilha { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 640px; }
 .texto-erro { color: #ff9d8f; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tela-escura .pagina-escura { padding-top: 100px; }
 .tela-escura { color-scheme: dark; }
 .grade-3, .grade-2 { align-items: end; }
+.grade-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }
+@media (max-width: 700px) { .grade-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

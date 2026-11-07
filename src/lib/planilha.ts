@@ -1,6 +1,9 @@
 // Gera a planilha de cada setor no próprio navegador (nada passa por servidor).
-// Se existir o modelo do CASD em /public/modelos/<setor>.xlsx, preenche o modelo
-// casando as colunas pelo nome do cabeçalho; senão, gera uma planilha padrão.
+// Com modelo do CASD (/public/modelos/<modelo>.xlsx) ou com o arquivo atual do
+// Drive, preenche as abas do portal mexendo só nas linhas de dados
+// (xlsxModelo.ts). Sem modelo, gera uma planilha padrão.
+
+import type { AbaModelo } from './xlsxModelo';
 
 export type Valor = string | number | boolean | null | undefined;
 
@@ -19,12 +22,14 @@ export interface Coluna<T> {
   formula?: (ref: (titulo: string) => string | null) => string | null;
 }
 
-export interface Exportacao<T> {
+export interface Exportacao {
   setor: string;
-  /** Nome que aparece no arquivo e na aba: "Editais", "Doadores"… */
+  /** Nome que aparece no arquivo: "Editais", "Doadores"… */
   nome: string;
-  colunas: Coluna<T>[];
-  itens: T[];
+  /** Arquivo em /public/modelos/ (sem .xlsx). Sem modelo, sai a planilha padrão. */
+  modelo?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  abas: AbaModelo<any>[];
 }
 
 /** "Valor / Orçamento (R$)" → "valororcamento". Serve para casar cabeçalhos. */
@@ -91,8 +96,8 @@ function hojeLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function baixar(dados: ArrayBuffer, arquivo: string) {
-  const blob = new Blob([dados], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+function baixar(dados: ArrayBuffer | Uint8Array, arquivo: string) {
+  const blob = new Blob([dados as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -103,76 +108,51 @@ function baixar(dados: ArrayBuffer, arquivo: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-/** Gera e baixa a planilha. Devolve se usou o modelo do CASD ou o padrão. */
-export async function gerarPlanilha<T>(exp: Exportacao<T>): Promise<{ usouModelo: boolean; linhas: number }> {
+export interface ResultadoPlanilha {
+  usouModelo: boolean;
+  arquivoAtual: boolean;
+  linhas: number;
+  abas: string[];
+}
+
+/**
+ * Gera e baixa a planilha. Com `atual` (o arquivo baixado do Drive), devolve o
+ * mesmo arquivo com as abas do portal atualizadas e as demais intactas.
+ */
+export async function gerarPlanilha(exp: Exportacao, atual?: ArrayBuffer): Promise<ResultadoPlanilha> {
+  const hoje = hojeLocal();
+  const linhas = exp.abas.reduce((s, a) => s + a.itens.length, 0);
+
+  let base: ArrayBuffer | null = atual ?? null;
+  if (!base && exp.modelo) {
+    const r = await fetch(`/modelos/${exp.modelo}.xlsx`, { cache: 'no-store' }).catch(() => null);
+    if (r?.ok) base = await r.arrayBuffer();
+  }
+
+  if (base) {
+    const { preencherXlsx } = await import('./xlsxModelo');
+    const r = await preencherXlsx(base, exp.abas);
+    if (r.preenchidas.length === 0) {
+      throw new Error(`o arquivo não tem a(s) aba(s) ${exp.abas.map((a) => `"${a.aba}"`).join(', ')} com o cabeçalho esperado`);
+    }
+    if (atual && r.faltando.length) throw new Error(`o arquivo não tem a(s) aba(s) ${r.faltando.map((a) => `"${a}"`).join(', ')}`);
+    baixar(r.bytes, nomeDoArquivo(exp.nome, hoje));
+    return { usouModelo: true, arquivoAtual: !!atual, linhas, abas: r.preenchidas };
+  }
+
   const ExcelJS = (await import('exceljs')).default;
   const livro = new ExcelJS.Workbook();
-  const hoje = hojeLocal();
-
-  let usouModelo = false;
-  const resposta = await fetch(`/modelos/${exp.setor}.xlsx`, { cache: 'no-store' }).catch(() => null);
-  if (resposta?.ok) {
-    await livro.xlsx.load(await resposta.arrayBuffer());
-    const aba = livro.worksheets[0];
-    if (aba && preencherModelo(aba, exp)) usouModelo = true;
-  }
-
-  if (!usouModelo) {
-    livro.worksheets.slice().forEach((w) => livro.removeWorksheet(w.id));
-    montarPadrao(livro.addWorksheet(exp.nome.slice(0, 31)), exp, hoje);
-  }
-
+  for (const aba of exp.abas) montarPadrao(livro.addWorksheet(aba.aba.slice(0, 31)), aba, hoje);
   livro.creator = 'Portal do Captador · CASD';
   livro.modified = new Date();
   baixar(await livro.xlsx.writeBuffer(), nomeDoArquivo(exp.nome, hoje));
-  return { usouModelo, linhas: exp.itens.length };
+  return { usouModelo: false, arquivoAtual: false, linhas, abas: exp.abas.map((a) => a.aba) };
 }
 
 type Aba = import('exceljs').Worksheet;
 
-/** Procura o cabeçalho nas 20 primeiras linhas e escreve os dados logo abaixo. */
-export function preencherModelo<T>(aba: Aba, exp: Exportacao<T>): boolean {
-  let linhaCab = 0;
-  let mapa: number[] = [];
-  for (let r = 1; r <= Math.min(20, aba.rowCount || 20); r++) {
-    const linha = aba.getRow(r);
-    const textos: string[] = [];
-    for (let c = 1; c <= Math.max(linha.cellCount, 1); c++) textos.push(String(linha.getCell(c).text ?? ''));
-    const m = casarCabecalho(textos, exp.colunas);
-    if (m.filter((i) => i >= 0).length >= Math.min(2, exp.colunas.length)) {
-      linhaCab = r;
-      mapa = m;
-      break;
-    }
-  }
-  if (!linhaCab) return false;
-
-  // Guarda o estilo da primeira linha de dados do modelo e limpa os dados antigos.
-  const estilos = mapa.map((_, c) => ({ ...aba.getRow(linhaCab + 1).getCell(c + 1).style }));
-  if (aba.rowCount > linhaCab) aba.spliceRows(linhaCab + 1, aba.rowCount - linhaCab);
-
-  exp.itens.forEach((item, n) => {
-    const r = linhaCab + 1 + n;
-    const linha = aba.getRow(r);
-    const colunaDe = (t: string) => {
-      const i = exp.colunas.findIndex((c) => c.titulo === t);
-      const c = mapa.indexOf(i);
-      return i >= 0 && c >= 0 ? c + 1 : null;
-    };
-    mapa.forEach((i, c) => {
-      if (i < 0) return;
-      const col = exp.colunas[i];
-      const celula = linha.getCell(c + 1);
-      celula.style = { ...estilos[c] };
-      celula.value = conteudo(col, item, r, colunaDe) as never;
-      if (col.tipo && FORMATO[col.tipo] && !estilos[c].numFmt) celula.numFmt = FORMATO[col.tipo];
-    });
-    linha.commit();
-  });
-  return true;
-}
-
-export function montarPadrao<T>(aba: Aba, exp: Exportacao<T>, hoje: string) {
+/** Planilha padrão (quando o setor não tem modelo do CASD). */
+export function montarPadrao<T>(aba: Aba, exp: { colunas: Coluna<T>[]; itens: T[] }, hoje: string) {
   aba.columns = exp.colunas.map((c) => ({ header: c.titulo, width: c.largura ?? Math.max(14, c.titulo.length + 4) }));
   const cab = aba.getRow(1);
   cab.font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -191,6 +171,6 @@ export function montarPadrao<T>(aba: Aba, exp: Exportacao<T>, hoje: string) {
     if (!c.tipo || c.tipo === 'texto') aba.getColumn(i + 1).alignment = { vertical: 'top', wrapText: true };
   });
   aba.views = [{ state: 'frozen', ySplit: 1 }];
-  aba.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: exp.colunas.length } };
+  if (exp.colunas.length) aba.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: exp.colunas.length } };
   aba.headerFooter.oddFooter = `&CPortal do Captador - gerado em ${hoje.split('-').reverse().join('/')}`;
 }

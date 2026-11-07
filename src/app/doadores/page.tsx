@@ -8,7 +8,8 @@ import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais } from '@/lib/contato';
-import { COLUNAS_DOADORES } from '@/lib/exportacoes';
+import { ContatoDoador, exportarCarteira, exportarInadimplentes } from '@/lib/exportacoes';
+import { buscarTudo, supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { NOME_SITUACAO, Situacao } from '@/lib/situacao';
 
@@ -26,6 +27,17 @@ const COR_FILEIRA: Record<string, string> = {
   atencao: '#E5533D', atraso_1: COR.atraso_1, atraso_2: COR.atraso_2, atraso_3: COR.atraso_3,
   checkpoints: '#8E6CD1', pontuais: COR.pontual, em_dia: COR.em_dia, cancelado: COR.cancelado,
 };
+
+/** Busca os contatos de cobrança e o nome dos membros para a aba "Inadimplentes". */
+async function prepararInadimplentes(carteira: Carteira | null) {
+  const sb = supabase();
+  const contatos = await buscarTudo<ContatoDoador>((a, b) =>
+    sb.from('contatos').select('doador_id, membro, canal, motivo, resultado, nota, criado_em').eq('motivo', 'cobranca').range(a, b),
+  );
+  const { data: membros } = await sb.from('membros').select('email, nome');
+  const nomes = new Map((membros ?? []).map((m: { email: string; nome: string }) => [m.email, m.nome]));
+  return exportarInadimplentes(carteira?.visoes ?? [], contatos, (e) => nomes.get(e) ?? e, carteira?.hoje ?? '');
+}
 
 function detalhe(v: VisaoDoador): string {
   if (v.rel?.status_conversa === 'nova_mensagem') return 'Nova mensagem';
@@ -122,7 +134,10 @@ export default function Doadores() {
       <div className="miolo">
         <Ferramentas>
           <BotaoPlanilha
-            preparar={() => ({ setor: 'doadores', nome: 'Doadores', colunas: COLUNAS_DOADORES, itens: carteira?.visoes ?? [] })}
+            opcoes={[
+              { rotulo: 'Planilha de abordagem (inadimplentes)', temModelo: true, preparar: () => prepararInadimplentes(carteira) },
+              { rotulo: 'Carteira completa', preparar: () => exportarCarteira(carteira?.visoes ?? []) },
+            ]}
           />
           <label className="campo">
             <span className="sr">Buscar doador</span>

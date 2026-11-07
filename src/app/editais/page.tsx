@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import BotaoImportar from '@/components/BotaoImportar';
 import BotaoPlanilha from '@/components/BotaoPlanilha';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaEdital from '@/components/FichaEdital';
@@ -8,10 +9,12 @@ import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { formatarData, formatarReais } from '@/lib/contato';
 import {
-  ABRANGENCIAS, carregarEditais, corSituacao, diasRestantes, Edital, editalDestaque, Inscricao, montarFileirasEditais,
-  NIVEIS, Projeto, rotuloDe, SITUACOES, textoDiasRestantes,
+  ABRANGENCIAS, carregarEditais, corSituacao, diasRestantesDoEdital, Edital, editalDestaque, emAberto, Inscricao,
+  montarFileirasEditais, NIVEIS, Projeto, rotuloDe, SITUACOES, textoDiasRestantes,
 } from '@/lib/editais';
-import { COLUNAS_EDITAIS } from '@/lib/exportacoes';
+import { exportarEditais } from '@/lib/exportacoes';
+import { faltandoNoPortal, lerEditaisDoArquivo } from '@/lib/importarPlanilha';
+import { supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { hojeIso } from '@/lib/texto';
 
@@ -46,16 +49,10 @@ export default function Editais() {
   const podeEditar = podeVer(membro, 'editais');
   const ehAdmin = membro.papel === 'admin';
   const editalAberto = aberto && aberto !== 'novo' ? dados?.editais.find((e) => e.id === aberto) ?? null : null;
-  const nomesProjetos = (id: string) =>
-    (dados?.inscricoes ?? [])
-      .filter((i) => i.edital_id === id)
-      .map((i) => dados?.projetos.find((p) => p.id === i.projeto_id)?.titulo)
-      .filter(Boolean)
-      .join('; ');
 
   const card = (e: Edital) => {
-    const dias = diasRestantes(e.prazo, hoje);
-    const vivo = e.situacao === 'novo' || e.situacao === 'em_escrita';
+    const dias = diasRestantesDoEdital(e, hoje);
+    const vivo = emAberto(e);
     return (
       <Card
         key={e.id}
@@ -70,8 +67,8 @@ export default function Editais() {
     );
   };
 
-  const vivos = dados?.editais.filter((e) => (e.situacao === 'novo' || e.situacao === 'em_escrita') && (!e.prazo || e.prazo >= hoje)).length ?? 0;
-  const diasDestaque = destaque ? diasRestantes(destaque.prazo, hoje) : null;
+  const vivos = dados?.editais.filter((e) => emAberto(e) && (!e.prazo || e.prazo >= hoje)).length ?? 0;
+  const diasDestaque = destaque ? diasRestantesDoEdital(destaque, hoje) : null;
 
   return (
     <Tela membro={membro}>
@@ -110,13 +107,36 @@ export default function Editais() {
         <Ferramentas>
           {podeEditar && <button type="button" className="botao destaque-cor" onClick={() => setAberto('novo')}>+ Lançar edital</button>}
           <BotaoPlanilha
-            preparar={() => ({
-              setor: 'editais',
-              nome: 'Editais',
-              colunas: COLUNAS_EDITAIS,
-              itens: (dados?.editais ?? []).map((e) => ({ ...e, projetos: nomesProjetos(e.id) })),
-            })}
+            opcoes={[
+              {
+                rotulo: 'Gerar planilha',
+                temModelo: true,
+                preparar: () => exportarEditais(dados?.editais ?? [], dados?.projetos ?? [], dados?.inscricoes ?? [], hojeIso()),
+                verificar: async (arquivo) => {
+                  const lidos = await lerEditaisDoArquivo(arquivo);
+                  if (!lidos) return 'Este arquivo não parece ser a planilha de monitoramento de editais.';
+                  const faltam = faltandoNoPortal(lidos.map((e) => e.nome), (dados?.editais ?? []).map((e) => e.nome));
+                  return faltam.length
+                    ? `O arquivo tem ${faltam.length} edital(is) que não estão no portal (ex.: ${faltam.slice(0, 2).join('; ')}). Use “Importar do Drive” antes, para não perdê-los.`
+                    : null;
+                },
+              },
+            ]}
           />
+          {podeEditar && dados && (
+            <BotaoImportar
+              ler={lerEditaisDoArquivo}
+              nomeDe={(e) => e.nome}
+              existentes={dados.editais.map((e) => e.nome)}
+              gravar={async (novos) => {
+                for (let i = 0; i < novos.length; i += 200) {
+                  const { error } = await supabase().from('editais').insert(novos.slice(i, i + 200));
+                  if (error) throw new Error(error.message);
+                }
+              }}
+              aoTerminar={recarregar}
+            />
+          )}
           <label className="campo">
             <span className="sr">Buscar edital</span>
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, organizador ou fonte" />
@@ -124,8 +144,9 @@ export default function Editais() {
           {dados && (
             <p className="resumo">
               <span><strong>{vivos}</strong> abertos</span>
-              <span><strong>{dados.editais.filter((e) => e.situacao === 'em_analise').length}</strong> em análise</span>
-              <span><strong>{dados.editais.filter((e) => e.situacao === 'aprovado').length}</strong> aprovados</span>
+              <span><strong>{dados.editais.filter((e) => e.situacao === 'inscrito').length}</strong> inscritos</span>
+              <span><strong>{dados.editais.filter((e) => e.situacao === 'aprovado' || e.situacao === 'concluido').length}</strong> aprovados</span>
+              <span><strong>{dados.editais.filter((e) => e.aderencia === 'a_revisar' && e.situacao !== 'descartado').length}</strong> a revisar</span>
             </p>
           )}
         </Ferramentas>

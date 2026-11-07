@@ -38,7 +38,7 @@ export default function Admin() {
     { rota: '/doadores', titulo: 'Doadores', linha: 'Plano de doadores, atrasos e pontuais', grande: numeros ? `${numeros.doadores}` : undefined, selo: 'Doadores', papel: 'doadores' },
     { rota: '/editais', titulo: 'Editais', linha: 'Lançar e acompanhar editais', grande: numeros ? `${numeros.editais} abertos` : undefined, selo: 'Editais', papel: 'editais' },
     { rota: '/projetos', titulo: 'Projetos', linha: 'CASDvest e Casdinho', grande: numeros ? `${numeros.projetos}` : undefined, selo: 'Editais', papel: 'editais' },
-    { rota: '/parceiros', titulo: 'Parceiros', linha: 'Empresas e patrocínios', selo: 'Em breve', papel: 'parceiros' },
+    { rota: '/parceiros', titulo: 'Parceiros', linha: 'Plano de abordagem PJ', selo: 'Parceiros', papel: 'parceiros' },
     { rota: '/eventos', titulo: 'Eventos', linha: 'Funil de patrocínio por evento', selo: 'Em breve', papel: 'eventos' },
   ];
   const cor = (papel: string) => PERFIS.find((p) => p.papel === papel)?.cor ?? '#3192B3';

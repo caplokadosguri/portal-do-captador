@@ -7,8 +7,9 @@ As telas internas seguem o visual da Netflix (tema escuro, banner de destaque e 
 - **Doadores**: importação dos relatórios da Trackmob, situação de pagamento (fileiras por meses de atraso), plano de doadores, trilha dos pontuais, mensagem pronta no WhatsApp e histórico de contatos.
 - **Editais**: lançar e acompanhar editais (situação, aderência, prioridade, prazo, valor, fonte do recurso, abrangência), fileiras por prazo, prioridade, situação e abrangência, e vínculo com projetos.
 - **Projetos**: banco de projetos em fileiras por esfera (CASDvest, Casdinho, ambos).
-- **Parceiros e Eventos**: tabelas prontas e tela "em breve".
-- **Gerar planilha**: cada setor tem o botão. O .xlsx é montado no navegador e preenche o modelo do CASD se ele estiver em `public/modelos/` (veja o LEIAME de lá); senão sai uma planilha padrão. Na planilha de editais, "Dias restantes" é fórmula e continua certa no Drive. A planilha de doadores não leva celular, e-mail nem dados de pagamento.
+- **Parceiros**: plano de abordagem de empresas (mesmos campos da aba "Parcerias e Doações PJ" do modelo do CASD), em fileiras por status, com alerta de mais de 7 dias sem retorno.
+- **Eventos**: tabela pronta e tela "em breve".
+- **Planilhas do CASD**: cada setor tem "Gerar planilha". Editais, Doadores (aba Inadimplentes) e Parceiros preenchem os modelos do CASD em `public/modelos/` sem estragar fórmulas, cores e listas; Projetos, Eventos e a carteira completa de doadores saem numa planilha padrão. "Atualizar arquivo do Drive" devolve o arquivo atual com as abas do portal atualizadas e "Importar do Drive" traz para o portal o que já estava na planilha. Detalhes em `public/modelos/LEIAME.md`.
 
 Especificação completa: https://claude.ai/artifact/KJminLaDe9KfCrHn6812mx
 
@@ -53,8 +54,9 @@ Use o e-mail institucional da Captação em todas as contas.
 | Regras de situação de pagamento e motivo de falha | `src/lib/situacao.ts` |
 | Textos das mensagens | tabela `modelos_mensagem` no Supabase (variáveis `{nome}`, `{valor}`, `{meses}`) |
 | Opções de situação, níveis, abrangência e sugestões de fonte dos editais; fileiras de editais e projetos | `src/lib/editais.ts` |
-| Colunas de cada planilha exportada | `src/lib/exportacoes.ts` |
-| Modelos de planilha do CASD | `public/modelos/<setor>.xlsx` |
+| Colunas de cada planilha exportada e de que aba do modelo | `src/lib/exportacoes.ts` |
+| Listas da abordagem de parceiros (status, canais, tipos) | `src/lib/parceiros.ts` |
+| Modelos de planilha do CASD (versões limpas) | `public/modelos/` |
 | Regras de acesso | `supabase/migrations/` |
 
 ## Desenvolvimento

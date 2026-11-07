@@ -1,7 +1,10 @@
 import { diasEntre } from './texto';
 
 export type Nivel = 'alta' | 'media' | 'baixa';
-export type Situacao = 'novo' | 'em_escrita' | 'em_analise' | 'aprovado' | 'nao_aprovado' | 'descartado';
+export type Aderencia = 'alta' | 'media' | 'a_revisar';
+export type Situacao =
+  | 'em_breve' | 'aberto' | 'fluxo_continuo' | 'em_preparacao' | 'aguardando' | 'escrevendo'
+  | 'inscrito' | 'aprovado' | 'concluido' | 'desclassificado' | 'encerrado' | 'descartado';
 export type Abrangencia = 'municipal' | 'estadual' | 'nacional' | 'internacional';
 export type Esfera = 'CASDvest' | 'Casdinho' | 'Ambos';
 export type StatusProjeto = 'ideia' | 'em_elaboracao' | 'pronto' | 'aprovado' | 'encerrado';
@@ -11,7 +14,7 @@ export interface Edital {
   nome: string;
   organizador: string | null;
   situacao: Situacao;
-  aderencia: Nivel | null;
+  aderencia: Aderencia | null;
   prioridade: Nivel | null;
   abertura: string | null;
   prazo: string | null;
@@ -20,6 +23,9 @@ export interface Edital {
   abrangencia: Abrangencia | null;
   link: string | null;
   observacao: string | null;
+  responsavel: string | null;
+  fonte_divulgacao: string | null;
+  motivo_descarte: string | null;
   criado_em?: string;
   atualizado_em?: string;
 }
@@ -43,19 +49,36 @@ export interface Inscricao {
 }
 
 /** As opções selecionáveis. A ordem aqui é a ordem nas telas. */
+/**
+ * As opções selecionáveis. Os rótulos são exatamente os da planilha
+ * "Monitoramento de Editais" do CASD (listas suspensas, cores e contagens
+ * da aba Resumo dependem deles). A ordem aqui é a ordem nas telas.
+ */
 export const SITUACOES: { valor: Situacao; rotulo: string; cor: string }[] = [
-  { valor: 'novo', rotulo: 'Novo (a avaliar)', cor: '#3192B3' },
-  { valor: 'em_escrita', rotulo: 'Em escrita', cor: '#F9B341' },
-  { valor: 'em_analise', rotulo: 'Em análise (enviado)', cor: '#8E6CD1' },
+  { valor: 'em_breve', rotulo: 'Em breve', cor: '#5DA9D6' },
+  { valor: 'aberto', rotulo: 'Aberto', cor: '#3192B3' },
+  { valor: 'fluxo_continuo', rotulo: 'Fluxo contínuo', cor: '#2A9D8F' },
+  { valor: 'em_preparacao', rotulo: 'Em preparação', cor: '#F9B341' },
+  { valor: 'aguardando', rotulo: 'Aguardando', cor: '#C9A227' },
+  { valor: 'escrevendo', rotulo: 'Escrevendo', cor: '#E07B39' },
+  { valor: 'inscrito', rotulo: 'Inscrito', cor: '#8E6CD1' },
   { valor: 'aprovado', rotulo: 'Aprovado', cor: '#3FA66B' },
-  { valor: 'nao_aprovado', rotulo: 'Não aprovado', cor: '#C0564A' },
-  { valor: 'descartado', rotulo: 'Descartado', cor: '#6B7F88' },
+  { valor: 'concluido', rotulo: 'Concluído', cor: '#2E7D4F' },
+  { valor: 'desclassificado', rotulo: 'Desclassificado', cor: '#C0564A' },
+  { valor: 'encerrado', rotulo: 'Encerrado', cor: '#6B7F88' },
+  { valor: 'descartado', rotulo: 'Descartado (fora do monitoramento)', cor: '#4B5A61' },
 ];
 
 export const NIVEIS: { valor: Nivel; rotulo: string }[] = [
   { valor: 'alta', rotulo: 'Alta' },
   { valor: 'media', rotulo: 'Média' },
   { valor: 'baixa', rotulo: 'Baixa' },
+];
+
+export const ADERENCIAS: { valor: Aderencia; rotulo: string }[] = [
+  { valor: 'alta', rotulo: 'Alta' },
+  { valor: 'media', rotulo: 'Média' },
+  { valor: 'a_revisar', rotulo: 'A revisar' },
 ];
 
 export const ABRANGENCIAS: { valor: Abrangencia; rotulo: string; plural: string }[] = [
@@ -97,12 +120,27 @@ export const rotuloDe = <T extends string>(lista: { valor: T; rotulo: string }[]
 
 export const corSituacao = (s: Situacao) => SITUACOES.find((o) => o.valor === s)?.cor ?? '#6B7F88';
 
-/** Ainda dá para trabalhar nele (não foi enviado nem fechado). */
-export const emAberto = (e: Edital) => e.situacao === 'novo' || e.situacao === 'em_escrita';
+const EM_ANDAMENTO: Situacao[] = ['em_breve', 'aberto', 'fluxo_continuo', 'em_preparacao', 'aguardando', 'escrevendo'];
+const SEM_CONTAGEM: Situacao[] = ['inscrito', 'aprovado', 'concluido', 'desclassificado', 'encerrado', 'descartado'];
+
+/** Ainda dá para trabalhar nele (não foi inscrito nem fechado). */
+export const emAberto = (e: Edital) => EM_ANDAMENTO.includes(e.situacao);
 
 /** Dias até o prazo (negativo = já passou). `null` sem prazo. */
 export function diasRestantes(prazo: string | null, hoje: string): number | null {
   return prazo ? diasEntre(hoje, prazo) : null;
+}
+
+/** Como na planilha: inscritos, aprovados e fechados não contam dias. */
+export function diasRestantesDoEdital(e: Edital, hoje: string): number | null {
+  return SEM_CONTAGEM.includes(e.situacao) ? null : diasRestantes(e.prazo, hoje);
+}
+
+/** A mesma ordem da coluna "Ordem (automático)" da planilha. */
+export function ordemDaPlanilha(e: Edital): number {
+  const fechado = ['encerrado', 'desclassificado', 'concluido'].includes(e.situacao);
+  const grupo = fechado ? 4 : e.situacao === 'inscrito' || e.situacao === 'aprovado' ? 3 : e.prazo ? 1 : 2;
+  return grupo * 100000 + (e.prazo ? Math.round(Date.parse(e.prazo) / 86400000) + 25569 : 0);
 }
 
 export function textoDiasRestantes(dias: number | null): string {
@@ -140,7 +178,9 @@ export function editalDestaque(editais: Edital[], hoje: string): Edital | null {
 
 export function montarFileirasEditais(editais: Edital[], hoje: string): FileiraEditais[] {
   const noPrazo = (e: Edital) => e.prazo === null || e.prazo >= hoje;
-  const vivos = editais.filter((e) => emAberto(e) && noPrazo(e));
+  const monitorados = editais.filter((e) => e.situacao !== 'descartado');
+  const vivos = monitorados.filter((e) => emAberto(e) && noPrazo(e));
+  const com = (...s: Situacao[]) => vivos.filter((e) => s.includes(e.situacao));
   const fileiras: FileiraEditais[] = [
     {
       chave: 'prazo',
@@ -149,22 +189,37 @@ export function montarFileirasEditais(editais: Edital[], hoje: string): FileiraE
       itens: vivos.filter((e) => e.prazo && diasEntre(hoje, e.prazo) <= 30).sort(porPrazo),
     },
     { chave: 'prioridade', titulo: 'Prioridade alta', cor: '#F9B341', itens: vivos.filter((e) => e.prioridade === 'alta').sort(porPrazo) },
-    { chave: 'em_escrita', titulo: 'Em escrita', cor: corSituacao('em_escrita'), itens: vivos.filter((e) => e.situacao === 'em_escrita').sort(porPrazo) },
-    { chave: 'novo', titulo: 'Novos para avaliar', cor: corSituacao('novo'), itens: vivos.filter((e) => e.situacao === 'novo').sort(porUrgencia) },
-    { chave: 'em_analise', titulo: 'Em análise pelo financiador', cor: corSituacao('em_analise'), itens: editais.filter((e) => e.situacao === 'em_analise').sort(porPrazo) },
+    { chave: 'escrevendo', titulo: 'Em preparação e escrevendo', cor: corSituacao('escrevendo'), itens: com('em_preparacao', 'escrevendo').sort(porPrazo) },
+    { chave: 'aberto', titulo: 'Abertos', cor: corSituacao('aberto'), itens: com('aberto').sort(porUrgencia) },
+    { chave: 'em_breve', titulo: 'Em breve', cor: corSituacao('em_breve'), itens: com('em_breve').sort(porPrazo) },
+    { chave: 'fluxo_continuo', titulo: 'Fluxo contínuo', cor: corSituacao('fluxo_continuo'), itens: com('fluxo_continuo').sort(porUrgencia) },
+    { chave: 'aguardando', titulo: 'Aguardando', cor: corSituacao('aguardando'), itens: com('aguardando').sort(porPrazo) },
+    { chave: 'a_revisar', titulo: 'Aderência a revisar', cor: '#C9A227', itens: vivos.filter((e) => e.aderencia === 'a_revisar').sort(porPrazo) },
+    { chave: 'inscrito', titulo: 'Inscritos (aguardando resultado)', cor: corSituacao('inscrito'), itens: monitorados.filter((e) => e.situacao === 'inscrito').sort(porPrazo) },
   ];
   for (const a of ABRANGENCIAS) {
     fileiras.push({ chave: a.valor, titulo: a.plural, cor: '#3192B3', itens: vivos.filter((e) => e.abrangencia === a.valor).sort(porUrgencia) });
   }
   fileiras.push(
-    { chave: 'aprovado', titulo: 'Aprovados', cor: corSituacao('aprovado'), itens: editais.filter((e) => e.situacao === 'aprovado') },
+    {
+      chave: 'aprovado',
+      titulo: 'Aprovados e concluídos',
+      cor: corSituacao('aprovado'),
+      itens: monitorados.filter((e) => e.situacao === 'aprovado' || e.situacao === 'concluido'),
+    },
     {
       chave: 'arquivo',
-      titulo: 'Arquivo (prazo encerrado, não aprovados e descartados)',
+      titulo: 'Arquivo (encerrados, desclassificados e prazo vencido)',
       cor: '#6B7F88',
-      itens: editais
-        .filter((e) => e.situacao === 'nao_aprovado' || e.situacao === 'descartado' || (emAberto(e) && !noPrazo(e)))
+      itens: monitorados
+        .filter((e) => e.situacao === 'encerrado' || e.situacao === 'desclassificado' || (emAberto(e) && !noPrazo(e)))
         .sort((a, b) => porPrazo(b, a)),
+    },
+    {
+      chave: 'descartado',
+      titulo: 'Descartados (analisados e fora do monitoramento)',
+      cor: corSituacao('descartado'),
+      itens: editais.filter((e) => e.situacao === 'descartado').sort((a, b) => porPrazo(b, a)),
     },
   );
   return fileiras;

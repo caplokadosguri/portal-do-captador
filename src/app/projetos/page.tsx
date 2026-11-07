@@ -8,7 +8,7 @@ import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { formatarReais } from '@/lib/contato';
 import { carregarEditais, Edital, ESFERAS, Inscricao, montarFileirasProjetos, Projeto, rotuloDe, STATUS_PROJETO } from '@/lib/editais';
-import { COLUNAS_PROJETOS } from '@/lib/exportacoes';
+import { exportarProjetos } from '@/lib/exportacoes';
 import { podeVer, useMembro } from '@/lib/membro';
 
 export default function Projetos() {
@@ -77,19 +77,7 @@ export default function Projetos() {
         <Ferramentas>
           <button type="button" className="botao destaque-cor" onClick={() => setAberto('novo')}>+ Novo projeto</button>
           <BotaoPlanilha
-            preparar={() => ({
-              setor: 'projetos',
-              nome: 'Projetos',
-              colunas: COLUNAS_PROJETOS,
-              itens: (dados?.projetos ?? []).map((p) => ({
-                ...p,
-                editais: (dados?.inscricoes ?? [])
-                  .filter((i) => i.projeto_id === p.id)
-                  .map((i) => dados?.editais.find((e) => e.id === i.edital_id)?.nome)
-                  .filter(Boolean)
-                  .join('; '),
-              })),
-            })}
+            opcoes={[{ rotulo: 'Gerar planilha', preparar: () => exportarProjetos(dados?.projetos ?? [], dados?.editais ?? [], dados?.inscricoes ?? []) }]}
           />
           {dados && (
             <p className="resumo">
