@@ -348,3 +348,9 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 @keyframes girar { to { transform: rotate(360deg); } }
 .passos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
 .codigo { max-height: 320px; overflow: auto; background: #071015; border: 1px solid var(--linha); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.45; white-space: pre; margin: 0; }
+.rever-abertura {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 12px;
+  border: 1px solid transparent; border-radius: 999px; background: none; color: var(--tinta-suave);
+  font: inherit; font-size: 14px; cursor: pointer;
+}
+.rever-abertura:hover, .rever-abertura:focus-visible { color: var(--tinta); border-color: var(--linha); }
