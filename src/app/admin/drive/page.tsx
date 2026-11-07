@@ -37,7 +37,8 @@ export default function DriveAdmin() {
   if (carregando) return <Carregando />;
   if (membro?.papel !== 'admin') return <SemAcesso email={email} />;
 
-  async function salvar() {
+  /** Salva e já testa: a ponte lê os links salvos no portal, não os da tela. */
+  async function salvar(): Promise<boolean> {
     setMsg(null);
     const linhas = [
       { chave: CHAVES_DRIVE.url, valor: url.trim() || null },
@@ -46,12 +47,17 @@ export default function DriveAdmin() {
       { chave: CHAVES_DRIVE.projetos, valor: links.projetos.trim() || null },
     ];
     const { error } = await supabase().from('configuracoes').upsert(linhas);
-    if (error) return setMsg({ texto: `Não salvou: ${error.message}`, erro: true });
-    setMsg({ texto: 'Salvo. Agora teste a ligação.' });
+    if (error) {
+      setMsg({ texto: `Não salvou: ${error.message}`, erro: true });
+      return false;
+    }
+    setMsg({ texto: 'Links salvos.' });
+    return true;
   }
 
-  async function testar() {
+  async function salvarETestar() {
     setTestes({});
+    if (!(await salvar())) return;
     for (const p of PLANILHAS) {
       if (!links[p.chave].trim()) {
         setTestes((t) => ({ ...t, [p.chave]: 'sem link' }));
@@ -136,8 +142,7 @@ export default function DriveAdmin() {
             </label>
           ))}
           <div className="linha">
-            <button type="button" className="botao" onClick={salvar}>Salvar</button>
-            <button type="button" className="botao secundario" onClick={testar} disabled={!url.trim()}>Testar ligação</button>
+            <button type="button" className="botao" onClick={salvarETestar} disabled={!url.trim()}>Salvar e testar</button>
           </div>
           {msg && <p className={`aviso ${msg.erro ? 'erro' : 'ok'}`} role="status" style={{ margin: 0 }}>{msg.texto}</p>}
         </section>
