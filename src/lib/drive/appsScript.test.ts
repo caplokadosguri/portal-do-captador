@@ -189,6 +189,15 @@ describe('ponte com o Drive (Apps Script)', () => {
     expect(ponte(ss, 'doadores')({ acao: 'ler', planilha: 'projetos', abas: [] }).erro).toContain('perfil');
   });
 
+  it('planilha nova sem regra própria: admin e o perfil de mesmo nome', () => {
+    const ss = planilhaFalsa([new Aba('Eventos', 4)]);
+    const cfg = { drive_planilha_eventos: 'PLANILHA_TESTE_1234567890' };
+    expect(ponte(ss, 'eventos', cfg)({ acao: 'ler', planilha: 'eventos', abas: [] }).ok).toBe(true);
+    expect(ponte(ss, 'admin', cfg)({ acao: 'ler', planilha: 'eventos', abas: [] }).ok).toBe(true);
+    expect(ponte(ss, 'editais', cfg)({ acao: 'ler', planilha: 'eventos', abas: [] }).erro).toContain('perfil');
+    expect(ponte(ss, 'admin', cfg)({ acao: 'ler', planilha: '../x', abas: [] }).erro).toContain('desconhecida');
+  });
+
   it('recusa quem não tem o perfil e planilha não ligada', () => {
     const ss = planilhaFalsa([abaEditais()]);
     expect(ponte(ss, 'doadores')({ acao: 'escrever', planilha: 'editais', abas: [] }).erro).toContain('perfil');

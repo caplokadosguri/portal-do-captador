@@ -2,7 +2,8 @@
 // para que o portal vire a fonte e o botão "Gerar planilha" não apague nada.
 
 import { ABRANGENCIAS, ADERENCIAS, Edital, ESFERAS, NIVEIS, Projeto, SITUACOES, STATUS_PROJETO } from './editais';
-import { COLUNAS_DESCARTADOS, COLUNAS_EDITAIS, COLUNAS_PARCERIAS, COLUNAS_PROJETOS } from './exportacoes';
+import { Evento, FREQUENCIAS, SITUACOES_EVENTO, TipoEvento, TIPOS } from './eventos';
+import { COLUNAS_DESCARTADOS, COLUNAS_EDITAIS, COLUNAS_EVENTOS, COLUNAS_PARCERIAS, COLUNAS_PROJETOS } from './exportacoes';
 import { Parceria, STATUS_ABORDAGEM } from './parceiros';
 import { chaveDeCabecalho } from './planilha';
 import { lerAba } from './xlsxModelo';
@@ -172,4 +173,40 @@ export function novosPorNome<T>(itens: T[], nomeDe: (i: T) => string, existentes
     vistos.add(k);
     return true;
   });
+}
+
+export const ABAS_LEITURA_EVENTOS = [{ aba: 'Eventos', colunas: COLUNAS_EVENTOS }];
+export type EventoNovo = Omit<Evento, 'id' | 'criado_em' | 'atualizado_em'>;
+
+/** Eventos da aba "Eventos" do Calendário de Eventos. */
+export function eventosDeLinhas(linhas: Linha[]): EventoNovo[] {
+  const saida: EventoNovo[] = [];
+  for (const l of linhas) {
+    const nome = txt(l['Evento']);
+    if (!nome) continue;
+    const tipos = String(l['Tipo'] ?? '')
+      .split(/[/,;\s]+/)
+      .map((s) => TIPOS.find((t) => t.sigla === s.trim().toUpperCase() || chaveDeCabecalho(t.rotulo) === chaveDeCabecalho(s))?.valor)
+      .filter((t): t is TipoEvento => !!t);
+    const frequencia = deRotulo(FREQUENCIAS, l['Frequência']) ?? 'unico';
+    const inicio = iso(l['Início']);
+    saida.push({
+      nome,
+      tipos: [...new Set(tipos)],
+      situacao: deRotulo(SITUACOES_EVENTO, l['Situação']) ?? 'proposta',
+      frequencia,
+      previsao: txt(l['Quando (previsão)']),
+      inicio: frequencia === 'unico' ? inicio : null,
+      fim: frequencia === 'unico' ? iso(l['Fim']) ?? inicio : null,
+      data_confirmada: /^sim/i.test(String(l['Data confirmada'] ?? '')),
+      local: txt(l['Local']),
+      responsavel: txt(l['Responsável']),
+      meta: valor(l['Meta de arrecadação']),
+      arrecadado: valor(l['Arrecadado']),
+      cotas: txt(l['Cotas de patrocínio']),
+      descricao: txt(l['Descrição']),
+      link: txt(l['Link']),
+    });
+  }
+  return saida;
 }

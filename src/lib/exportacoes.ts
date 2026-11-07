@@ -6,6 +6,7 @@ import {
   ABRANGENCIAS, ADERENCIAS, Edital, emAberto, ESFERAS, Inscricao, NIVEIS, ordemDaPlanilha, Projeto,
   rotuloDe, SITUACOES, STATUS_PROJETO,
 } from './editais';
+import { Evento, FREQUENCIAS, quando, rotuloSituacao, TIPOS } from './eventos';
 import { Parceria, rotuloStatus } from './parceiros';
 import type { Coluna, Exportacao } from './planilha';
 import { NOME_SITUACAO } from './situacao';
@@ -390,19 +391,42 @@ export function exportarParcerias(lista: Parceria[]): Exportacao {
 }
 
 // ---------------------------------------------------------------------------
-// Eventos — sem modelo ainda
+// Eventos — modelo "Calendário de Eventos" (criado pelo portal)
 // ---------------------------------------------------------------------------
 
-export interface Evento { id: string; nome: string; data: string | null; meta_patrocinio: number | null; cotas: string | null }
-
 export const COLUNAS_EVENTOS: Coluna<Evento>[] = [
-  { titulo: 'Evento', outrosNomes: ['Nome'], largura: 30, valor: (e) => e.nome },
-  { titulo: 'Data', tipo: 'data', valor: (e) => e.data },
-  { titulo: 'Meta de patrocínio', outrosNomes: ['Meta'], tipo: 'moeda', valor: (e) => e.meta_patrocinio },
-  { titulo: 'Cotas', largura: 40, valor: (e) => e.cotas },
+  { titulo: 'Evento', outrosNomes: ['Nome', 'Nome do evento'], largura: 32, valor: (e) => e.nome },
+  { titulo: 'Tipo', valor: (e) => e.tipos.map((t) => TIPOS.find((x) => x.valor === t)!.sigla).join('/') || null },
+  { titulo: 'Situação', outrosNomes: ['Status'], largura: 20, valor: (e) => rotuloSituacao(e.situacao) },
+  { titulo: 'Quando (previsão)', outrosNomes: ['Quando', 'Previsão'], largura: 30, valor: (e) => quando(e) },
+  { titulo: 'Início', outrosNomes: ['De'], tipo: 'data', valor: (e) => e.inicio },
+  { titulo: 'Fim', outrosNomes: ['Até'], tipo: 'data', valor: (e) => e.fim },
+  { titulo: 'Data confirmada', valor: (e) => (e.frequencia === 'unico' && e.inicio ? (e.data_confirmada ? 'Sim' : 'Não (especulada)') : null) },
+  { titulo: 'Frequência', valor: (e) => FREQUENCIAS.find((f) => f.valor === e.frequencia)?.rotulo ?? null },
+  { titulo: 'Local', largura: 22, valor: (e) => e.local },
+  { titulo: 'Responsável', valor: (e) => e.responsavel },
+  { titulo: 'Meta de arrecadação', outrosNomes: ['Meta'], tipo: 'moeda', valor: (e) => e.meta },
+  { titulo: 'Arrecadado', tipo: 'moeda', valor: (e) => e.arrecadado },
+  { titulo: 'Cotas de patrocínio', outrosNomes: ['Cotas'], largura: 30, valor: (e) => e.cotas },
+  { titulo: 'Descrição', outrosNomes: ['Observações'], largura: 40, valor: (e) => e.descricao },
+  { titulo: 'Link', largura: 28, valor: (e) => e.link },
 ];
 
-export function exportarEventos(eventos: Evento[]): Exportacao {
-  return { setor: 'eventos', nome: 'Eventos', abas: [{ aba: 'Eventos', colunas: COLUNAS_EVENTOS, itens: eventos }] };
+export function exportarEventos(eventos: Evento[], hoje?: string): Exportacao {
+  const ordem = (e: Evento) => (e.frequencia === 'unico' ? (e.inicio ? `1${e.inicio}` : '2') : '3');
+  const itens = [...eventos].sort((a, b) => ordem(a).localeCompare(ordem(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  return {
+    setor: 'eventos',
+    nome: 'Calendário de Eventos',
+    modelo: 'eventos',
+    abas: [
+      {
+        aba: 'Eventos',
+        colunas: COLUNAS_EVENTOS,
+        itens,
+        ajustes: hoje ? [{ celula: 'D1', texto: (t) => (/última atualização/i.test(t) ? `${t.replace(/(última atualização:).*$/i, '$1')} ${dataBr(hoje)}` : t) }] : [],
+        ajustesDrive: hoje ? [{ celula: 'D1', depoisDe: 'última atualização:', texto: dataBr(hoje) }] : [],
+      },
+    ],
+  };
 }
-

@@ -9,7 +9,7 @@
 // listas e outras abas ficam como estão.
 
 /** Muda quando o código abaixo muda: o portal avisa se a ponte publicada estiver velha. */
-export const VERSAO_PONTE = 2;
+export const VERSAO_PONTE = 3;
 
 const CODIGO = String.raw`/**
  * Portal do Captador · CASD — ponte com o Drive.
@@ -19,11 +19,12 @@ const CODIGO = String.raw`/**
  * Para atualizar: cole o código novo, salve e vá em Implantar > Gerenciar
  * implantações > editar (lápis) > Versão: Nova versão > Implantar.
  */
-var VERSAO = 2;
+var VERSAO = 3;
 var SUPABASE_URL = '__SUPABASE_URL__';
 var SUPABASE_CHAVE = '__SUPABASE_CHAVE__';
 
-// Quem pode mexer em cada aba.
+// Quem pode mexer em cada aba. Planilha que não está aqui: o administrador e
+// o perfil de mesmo nome (ex.: planilha "eventos" -> perfil Eventos).
 var PERMISSOES = {
   'editais': { '*': ['admin', 'editais'] },
   'projetos': { '*': ['admin', 'editais'] },
@@ -101,8 +102,8 @@ function conferirLogin(token) {
 }
 
 function autorizar(papel, planilha, abas) {
-  var regras = PERMISSOES[planilha];
-  if (!regras) throw new Error('Planilha desconhecida: ' + planilha);
+  if (!/^[a-z]+$/.test(String(planilha))) throw new Error('Planilha desconhecida: ' + planilha);
+  var regras = PERMISSOES[planilha] || { '*': ['admin', planilha] };
   var chaves = abas.length ? abas.map(function (a) { return chave(a.aba); }) : ['*'];
   chaves.forEach(function (k) {
     var ok = regras[k] || regras['*'];

@@ -12,12 +12,13 @@ const PLANILHAS: { chave: PlanilhaDrive; nome: string; usa: string; modelo?: str
   { chave: 'editais', nome: 'Monitoramento de Editais', usa: 'Editais: abas Controle de Editais, Descartados e Log semanal' },
   { chave: 'abordagem', nome: 'Plano de abordagem', usa: 'Doadores (aba Inadimplentes) e Parceiros (aba Parcerias e Doações PJ)' },
   { chave: 'projetos', nome: 'Banco de Projetos', usa: 'Projetos: abas Projetos e Resumo', modelo: '/modelos/projetos.xlsx' },
+  { chave: 'eventos', nome: 'Calendário de Eventos', usa: 'Eventos: abas Eventos e Resumo', modelo: '/modelos/eventos.xlsx' },
 ];
 
 export default function DriveAdmin() {
   const { carregando, membro, email } = useMembro();
   const [url, setUrl] = useState('');
-  const [links, setLinks] = useState<Record<PlanilhaDrive, string>>({ editais: '', abordagem: '', projetos: '' });
+  const [links, setLinks] = useState<Record<PlanilhaDrive, string>>({ editais: '', abordagem: '', projetos: '', eventos: '' });
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   const [testes, setTestes] = useState<Record<string, string>>({});
   const [verCodigo, setVerCodigo] = useState(false);
@@ -30,7 +31,7 @@ export default function DriveAdmin() {
     if (membro?.papel !== 'admin') return;
     lerConfigDrive().then((c) => {
       setUrl(c.url ?? '');
-      setLinks({ editais: c.planilhas.editais ?? '', abordagem: c.planilhas.abordagem ?? '', projetos: c.planilhas.projetos ?? '' });
+      setLinks({ editais: c.planilhas.editais ?? '', abordagem: c.planilhas.abordagem ?? '', projetos: c.planilhas.projetos ?? '', eventos: c.planilhas.eventos ?? '' });
     });
   }, [membro]);
 
@@ -45,6 +46,7 @@ export default function DriveAdmin() {
       { chave: CHAVES_DRIVE.editais, valor: links.editais.trim() || null },
       { chave: CHAVES_DRIVE.abordagem, valor: links.abordagem.trim() || null },
       { chave: CHAVES_DRIVE.projetos, valor: links.projetos.trim() || null },
+      { chave: CHAVES_DRIVE.eventos, valor: links.eventos.trim() || null },
     ];
     const { error } = await supabase().from('configuracoes').upsert(linhas);
     if (error) {

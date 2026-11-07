@@ -29,7 +29,7 @@ export interface Exportacao {
   /** Nome que aparece no arquivo: "Editais", "Doadores"… */
   nome: string;
   /** Modelo do CASD: arquivo em /public/modelos/ e planilha ligada no Drive. Sem modelo, sai a planilha padrão. */
-  modelo?: 'editais' | 'abordagem' | 'projetos';
+  modelo?: 'editais' | 'abordagem' | 'projetos' | 'eventos';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   abas: AbaModelo<any>[];
 }

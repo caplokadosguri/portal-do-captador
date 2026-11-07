@@ -7,7 +7,7 @@ import type { Exportacao, Valor } from '../planilha';
 import { VERSAO_PONTE } from './codigoAppsScript';
 import { supabase } from '../supabase/cliente';
 
-export type PlanilhaDrive = 'editais' | 'abordagem' | 'projetos';
+export type PlanilhaDrive = 'editais' | 'abordagem' | 'projetos' | 'eventos';
 
 export interface ConfigDrive {
   url: string | null;
@@ -19,6 +19,7 @@ export const CHAVES_DRIVE = {
   editais: 'drive_planilha_editais',
   abordagem: 'drive_planilha_abordagem',
   projetos: 'drive_planilha_projetos',
+  eventos: 'drive_planilha_eventos',
 } as const;
 
 export async function lerConfigDrive(): Promise<ConfigDrive> {
@@ -30,6 +31,7 @@ export async function lerConfigDrive(): Promise<ConfigDrive> {
       editais: c.get(CHAVES_DRIVE.editais) ?? null,
       abordagem: c.get(CHAVES_DRIVE.abordagem) ?? null,
       projetos: c.get(CHAVES_DRIVE.projetos) ?? null,
+      eventos: c.get(CHAVES_DRIVE.eventos) ?? null,
     },
   };
 }
