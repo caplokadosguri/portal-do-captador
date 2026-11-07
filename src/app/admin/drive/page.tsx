@@ -12,7 +12,7 @@ const PLANILHAS: { chave: PlanilhaDrive; nome: string; usa: string; modelo?: str
   { chave: 'editais', nome: 'Monitoramento de Editais', usa: 'Editais: abas Controle de Editais, Descartados e Log semanal' },
   { chave: 'abordagem', nome: 'Plano de abordagem', usa: 'Doadores (aba Inadimplentes) e Parceiros (aba Parcerias e Doações PJ)' },
   { chave: 'projetos', nome: 'Banco de Projetos', usa: 'Projetos: abas Projetos e Resumo', modelo: '/modelos/projetos.xlsx' },
-  { chave: 'eventos', nome: 'Calendário de Eventos', usa: 'Eventos: abas Eventos e Resumo', modelo: '/modelos/eventos.xlsx' },
+  { chave: 'eventos', nome: 'Calendário de Eventos', usa: 'Eventos: abas Eventos, Metas, Gastos, Patrocinadores, Tarefas e Resumo', modelo: '/modelos/eventos.xlsx' },
 ];
 
 export default function DriveAdmin() {
@@ -22,6 +22,8 @@ export default function DriveAdmin() {
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   const [testes, setTestes] = useState<Record<string, string>>({});
   const [verCodigo, setVerCodigo] = useState(false);
+  const [docResumo, setDocResumo] = useState('');
+  const [pastaResumo, setPastaResumo] = useState('');
   const codigo = useMemo(
     () => codigoAppsScript(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''),
     [],
@@ -31,6 +33,8 @@ export default function DriveAdmin() {
     if (membro?.papel !== 'admin') return;
     lerConfigDrive().then((c) => {
       setUrl(c.url ?? '');
+      setDocResumo(c.docResumo ?? '');
+      setPastaResumo(c.pastaResumo ?? '');
       setLinks({ editais: c.planilhas.editais ?? '', abordagem: c.planilhas.abordagem ?? '', projetos: c.planilhas.projetos ?? '', eventos: c.planilhas.eventos ?? '' });
     });
   }, [membro]);
@@ -47,6 +51,8 @@ export default function DriveAdmin() {
       { chave: CHAVES_DRIVE.abordagem, valor: links.abordagem.trim() || null },
       { chave: CHAVES_DRIVE.projetos, valor: links.projetos.trim() || null },
       { chave: CHAVES_DRIVE.eventos, valor: links.eventos.trim() || null },
+      { chave: CHAVES_DRIVE.docResumo, valor: docResumo.trim() || null },
+      { chave: CHAVES_DRIVE.pastaResumo, valor: pastaResumo.trim() || null },
     ];
     const { error } = await supabase().from('configuracoes').upsert(linhas);
     if (error) {
@@ -72,6 +78,14 @@ export default function DriveAdmin() {
       } catch (e) {
         setTestes((t) => ({ ...t, [p.chave]: `✗ ${(e as Error).message}` }));
       }
+    }
+    if (!docResumo.trim()) return setTestes((t) => ({ ...t, docResumo: 'sem link' }));
+    setTestes((t) => ({ ...t, docResumo: 'testando…' }));
+    try {
+      const r = await chamarDrive(url.trim(), 'documento', 'projetos', [], { modelo: 'resumo_projeto', testar: true });
+      setTestes((t) => ({ ...t, docResumo: `✓ ligado: “${r.nome}”` }));
+    } catch (e) {
+      setTestes((t) => ({ ...t, docResumo: `✗ ${(e as Error).message}` }));
     }
   }
 
@@ -143,6 +157,22 @@ export default function DriveAdmin() {
               {testes[p.chave] && <span className={`pequeno ${testes[p.chave].startsWith('✗') ? 'texto-erro' : ''}`} style={{ fontWeight: 400 }}>{testes[p.chave]}</span>}
             </label>
           ))}
+          <h3 style={{ fontSize: 15, marginTop: 8 }}>Documentos</h3>
+          <label className="campo">
+            Link do modelo “Resumo de escopo de projeto” (Google Docs)
+            <input value={docResumo} onChange={(e) => setDocResumo(e.target.value)} placeholder="https://docs.google.com/document/d/…" />
+            <span className="suave pequeno" style={{ fontWeight: 400 }}>
+              Usado pelo botão “Salvar e gerar resumo” na ficha do projeto. <a href="/modelos/resumo-projeto.docx" download>Baixe o modelo</a>,
+              suba no Drive, abra e use <strong>Arquivo › Salvar como Documentos Google</strong>; cole aqui o link da versão Google.
+              Pode mudar textos e cores à vontade, mantendo os <code>{'{{campos}}'}</code> escritos igual.
+            </span>
+            {testes.docResumo && <span className={`pequeno ${testes.docResumo.startsWith('✗') ? 'texto-erro' : ''}`} style={{ fontWeight: 400 }}>{testes.docResumo}</span>}
+          </label>
+          <label className="campo">
+            Pasta onde salvar os resumos (opcional)
+            <input value={pastaResumo} onChange={(e) => setPastaResumo(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" />
+            <span className="suave pequeno" style={{ fontWeight: 400 }}>Se ficar vazio, os resumos vão para a mesma pasta do modelo.</span>
+          </label>
           <div className="linha">
             <button type="button" className="botao" onClick={salvarETestar} disabled={!url.trim()}>Salvar e testar</button>
           </div>

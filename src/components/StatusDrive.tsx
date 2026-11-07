@@ -113,12 +113,21 @@ export default function StatusDrive({
   }, [pronto, planilha, sincronizar]);
 
   // 2. Depois de cada alteração salva no portal.
+  //    Espera 2 s sem novas alterações (ex.: vários campos de uma subaba) e não
+  //    começa outra escrita enquanto uma está em andamento: a pendência fica guardada.
   const versaoVista = useRef(versao);
+  const pendente = useRef(false);
   useEffect(() => {
-    if (versao === versaoVista.current) return;
-    versaoVista.current = versao;
-    if (ponte.current && fase.tipo !== 'importar' && fase.tipo !== 'sem_config') {
-      const t = setTimeout(() => sincronizar(), 800);
+    if (versao !== versaoVista.current) {
+      versaoVista.current = versao;
+      pendente.current = true;
+    }
+    if (!pendente.current) return;
+    if (ponte.current && fase.tipo !== 'importar' && fase.tipo !== 'sem_config' && fase.tipo !== 'sincronizando') {
+      const t = setTimeout(() => {
+        pendente.current = false;
+        sincronizar();
+      }, 2000);
       return () => clearTimeout(t);
     }
   }, [versao, fase.tipo, sincronizar]);

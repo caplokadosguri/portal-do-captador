@@ -13,9 +13,9 @@ grant usage on schema public to authenticated;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
 `)
-for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
+for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql", "0007_resumo_e_subabas.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
 await db.exec(`
-insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('par@casd.org','Par','parceiros',true,now()),('ex@casd.org','Ex','doadores',false,now());
+insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('par@casd.org','Par','parceiros',true,now()),('eve@casd.org','Eve','eventos',true,now()),('ex@casd.org','Ex','doadores',false,now());
 insert into doadores (id,nome) values ('D1','Fulano');
 insert into doacoes (id,doador_id,valor) values ('X1','D1',50);
 insert into projetos (titulo) values ('Projeto A');
@@ -49,6 +49,11 @@ const casos = [
   ['doa@casd.org', 'select count(*)::int n from parcerias'],
   ['edi@casd.org', "insert into parcerias (organizacao) values ('Y') returning id"],
   ['admin@casd.org', 'select count(*)::int n from parcerias'],
+  ['eve@casd.org', "insert into eventos (nome) values ('Evento X') returning situacao"],
+  ['eve@casd.org', "insert into evento_gastos (evento_id, descricao, previsto) select id, 'Som', 500 from eventos limit 1 returning situacao"],
+  ['eve@casd.org', "delete from evento_gastos returning descricao"],
+  ['doa@casd.org', 'select count(*)::int n from evento_gastos'],
+  ['par@casd.org', "insert into evento_metas (evento_id, descricao) select id, 'Público' from eventos limit 1 returning id"],
   ['admin@casd.org', "insert into configuracoes (chave, valor) values ('drive_script_url','https://x') returning atualizado_por"],
   ['doa@casd.org', 'select chave from configuracoes'],
   ['doa@casd.org', "update configuracoes set valor='hack' returning chave"],

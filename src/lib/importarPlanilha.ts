@@ -57,6 +57,8 @@ export function projetosDeLinhas(linhas: Linha[]): ProjetoNovo[] {
       orcamento: valor(l['Orçamento']),
       status: deRotulo(STATUS_PROJETO, l['Status']) ?? 'ideia',
       link_documentos: txt(l['Link dos documentos']),
+      objetivo: txt(l['Objetivo']),
+      responsavel: txt(l['Responsável']),
     });
   }
   return saida;

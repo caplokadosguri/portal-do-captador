@@ -7,6 +7,10 @@ import {
   rotuloDe, SITUACOES, STATUS_PROJETO,
 } from './editais';
 import { Evento, FREQUENCIAS, quando, rotuloSituacao, TIPOS } from './eventos';
+import {
+  DETALHES_VAZIOS, DetalhesEventos, Financeiro, financeiro, GastoEvento, MetaEvento, PatrocinioEvento, progressoDaMeta, SITUACOES_GASTO,
+  SITUACOES_PATROCINIO, TarefaEvento,
+} from './eventosDetalhe';
 import { Parceria, rotuloStatus } from './parceiros';
 import type { Coluna, Exportacao } from './planilha';
 import { NOME_SITUACAO } from './situacao';
@@ -133,12 +137,15 @@ export const COLUNAS_PROJETOS: Coluna<Projeto & { editais?: string }>[] = [
   { titulo: 'Título', outrosNomes: ['Projeto', 'Nome do projeto'], largura: 34, valor: (p) => p.titulo },
   { titulo: 'Esfera', valor: (p) => (p.esfera ? rotuloDe(ESFERAS, p.esfera) : null) },
   { titulo: 'Status', outrosNomes: ['Situação'], valor: (p) => rotuloDe(STATUS_PROJETO, p.status) },
+  { titulo: 'Objetivo', depoisDe: 'Status', largura: 40, valor: (p) => p.objetivo ?? null },
   { titulo: 'Escopo', outrosNomes: ['Descrição', 'Resumo'], largura: 50, valor: (p) => p.escopo },
   { titulo: 'Quem pediu', outrosNomes: ['Solicitante'], largura: 22, valor: (p) => p.quem_pediu },
+  { titulo: 'Responsável', depoisDe: 'Quem pediu', largura: 18, valor: (p) => p.responsavel ?? null },
   { titulo: 'Público atendido', outrosNomes: ['Beneficiários', 'Público'], tipo: 'numero', valor: (p) => p.publico_atendido },
   { titulo: 'Orçamento', outrosNomes: ['Valor'], tipo: 'moeda', valor: (p) => p.orcamento },
   { titulo: 'Link dos documentos', outrosNomes: ['Link', 'Documentos'], largura: 34, valor: (p) => p.link_documentos },
   { titulo: 'Editais vinculados', outrosNomes: ['Editais', 'Edital'], largura: 34, valor: (p) => p.editais ?? null },
+  { titulo: 'Resumo para a assessoria', depoisDe: 'Link dos documentos', largura: 30, valor: (p) => p.link_resumo ?? null },
 ];
 
 export function exportarProjetos(projetos: Projeto[], editais: Edital[], inscricoes: Inscricao[], hoje?: string): Exportacao {
@@ -394,7 +401,9 @@ export function exportarParcerias(lista: Parceria[]): Exportacao {
 // Eventos — modelo "Calendário de Eventos" (criado pelo portal)
 // ---------------------------------------------------------------------------
 
-export const COLUNAS_EVENTOS: Coluna<Evento>[] = [
+type EventoComContas = Evento & { contas?: Financeiro };
+
+export const COLUNAS_EVENTOS: Coluna<EventoComContas>[] = [
   { titulo: 'Evento', outrosNomes: ['Nome', 'Nome do evento'], largura: 32, valor: (e) => e.nome },
   { titulo: 'Tipo', valor: (e) => e.tipos.map((t) => TIPOS.find((x) => x.valor === t)!.sigla).join('/') || null },
   { titulo: 'Situação', outrosNomes: ['Status'], largura: 20, valor: (e) => rotuloSituacao(e.situacao) },
@@ -407,25 +416,91 @@ export const COLUNAS_EVENTOS: Coluna<Evento>[] = [
   { titulo: 'Responsável', valor: (e) => e.responsavel },
   { titulo: 'Meta de arrecadação', outrosNomes: ['Meta'], tipo: 'moeda', valor: (e) => e.meta },
   { titulo: 'Arrecadado', tipo: 'moeda', valor: (e) => e.arrecadado },
+  { titulo: 'Patrocínio recebido', depoisDe: 'Arrecadado', tipo: 'moeda', valor: (e) => e.contas?.patrocinioRecebido ?? null },
+  { titulo: 'Gastos realizados', depoisDe: 'Patrocínio recebido', tipo: 'moeda', valor: (e) => e.contas?.gastosRealizados ?? null },
+  { titulo: 'Saldo', depoisDe: 'Gastos realizados', tipo: 'moeda', valor: (e) => e.contas?.saldo ?? null },
   { titulo: 'Cotas de patrocínio', outrosNomes: ['Cotas'], largura: 30, valor: (e) => e.cotas },
   { titulo: 'Descrição', outrosNomes: ['Observações'], largura: 40, valor: (e) => e.descricao },
   { titulo: 'Link', largura: 28, valor: (e) => e.link },
 ];
 
-export function exportarEventos(eventos: Evento[], hoje?: string): Exportacao {
+type ComEvento<T> = T & { evento: string };
+const rotulo = <V extends string>(lista: { valor: V; rotulo: string }[], v: V) => lista.find((x) => x.valor === v)?.rotulo ?? v;
+
+export const COLUNAS_METAS: Coluna<ComEvento<MetaEvento>>[] = [
+  { titulo: 'Evento', largura: 32, valor: (m) => m.evento },
+  { titulo: 'Meta', largura: 34, valor: (m) => m.descricao },
+  { titulo: 'Unidade', valor: (m) => m.unidade },
+  { titulo: 'Alvo', tipo: 'numero', valor: (m) => m.alvo },
+  { titulo: 'Atual', tipo: 'numero', valor: (m) => m.atual },
+  { titulo: '% atingido', tipo: 'numero', valor: (m) => progressoDaMeta(m) },
+  { titulo: 'Observação', largura: 36, valor: (m) => m.observacao },
+];
+
+export const COLUNAS_GASTOS: Coluna<ComEvento<GastoEvento>>[] = [
+  { titulo: 'Evento', largura: 32, valor: (g) => g.evento },
+  { titulo: 'Descrição', largura: 34, valor: (g) => g.descricao },
+  { titulo: 'Categoria', valor: (g) => g.categoria },
+  { titulo: 'Fornecedor', largura: 22, valor: (g) => g.fornecedor },
+  { titulo: 'Previsto', tipo: 'moeda', valor: (g) => g.previsto },
+  { titulo: 'Realizado', tipo: 'moeda', valor: (g) => g.realizado },
+  { titulo: 'Situação', valor: (g) => rotulo(SITUACOES_GASTO, g.situacao) },
+  { titulo: 'Data', tipo: 'data', valor: (g) => g.data },
+  { titulo: 'Comprovante', largura: 30, valor: (g) => g.comprovante },
+];
+
+export const COLUNAS_PATROCINADORES: Coluna<ComEvento<PatrocinioEvento>>[] = [
+  { titulo: 'Evento', largura: 32, valor: (p) => p.evento },
+  { titulo: 'Empresa', largura: 30, valor: (p) => p.empresa },
+  { titulo: 'Cota', valor: (p) => p.cota },
+  { titulo: 'Valor', tipo: 'moeda', valor: (p) => p.valor },
+  { titulo: 'Situação', valor: (p) => rotulo(SITUACOES_PATROCINIO, p.situacao) },
+  { titulo: 'Contrapartidas', largura: 36, valor: (p) => p.contrapartidas },
+  { titulo: 'Contato', largura: 26, valor: (p) => p.contato },
+  { titulo: 'Observação', largura: 32, valor: (p) => p.observacao },
+];
+
+export const COLUNAS_TAREFAS: Coluna<ComEvento<TarefaEvento>>[] = [
+  { titulo: 'Evento', largura: 32, valor: (t) => t.evento },
+  { titulo: 'Tarefa', largura: 44, valor: (t) => t.descricao },
+  { titulo: 'Responsável', valor: (t) => t.responsavel },
+  { titulo: 'Prazo', tipo: 'data', valor: (t) => t.prazo },
+  { titulo: 'Feita', valor: (t) => (t.feita ? 'Sim' : 'Não') },
+];
+
+export function exportarEventos(eventos: Evento[], hoje?: string, detalhes: DetalhesEventos = DETALHES_VAZIOS): Exportacao {
   const ordem = (e: Evento) => (e.frequencia === 'unico' ? (e.inicio ? `1${e.inicio}` : '2') : '3');
-  const itens = [...eventos].sort((a, b) => ordem(a).localeCompare(ordem(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const ordenados = [...eventos].sort((a, b) => ordem(a).localeCompare(ordem(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  const itens = ordenados.map((e) => ({ ...e, contas: financeiro(e, detalhes.gastos, detalhes.patrocinadores) }));
+  const posicao = new Map(ordenados.map((e, i) => [e.id, i]));
+  const nome = new Map(eventos.map((e) => [e.id, e.nome]));
+  // Linhas das subabas na ordem do calendário; itens de eventos apagados ficam de fora.
+  const doEvento = <T extends { evento_id: string }>(xs: T[], desempate: (a: T, b: T) => number) =>
+    xs
+      .filter((x) => nome.has(x.evento_id))
+      .sort((a, b) => posicao.get(a.evento_id)! - posicao.get(b.evento_id)! || desempate(a, b))
+      .map((x) => ({ ...x, evento: nome.get(x.evento_id)! }));
+  const pt = (a: string, b: string) => a.localeCompare(b, 'pt-BR');
+  const titulo = (t: string) => ({
+    ajustes: hoje ? [{ celula: 'D1', texto: (x: string) => (/última atualização/i.test(x) ? `${x.replace(/(última atualização:).*$/i, '$1')} ${dataBr(hoje)}` : x) }] : [],
+    ajustesDrive: hoje ? [{ celula: 'D1', depoisDe: 'última atualização:', texto: dataBr(hoje) }] : [],
+    aba: t,
+  });
   return {
     setor: 'eventos',
     nome: 'Calendário de Eventos',
     modelo: 'eventos',
     abas: [
+      { ...titulo('Eventos'), colunas: COLUNAS_EVENTOS, itens },
+      { ...titulo('Metas'), colunas: COLUNAS_METAS, itens: doEvento(detalhes.metas, (a, b) => pt(a.descricao, b.descricao)), chave: ['Evento', 'Meta'] },
       {
-        aba: 'Eventos',
-        colunas: COLUNAS_EVENTOS,
-        itens,
-        ajustes: hoje ? [{ celula: 'D1', texto: (t) => (/última atualização/i.test(t) ? `${t.replace(/(última atualização:).*$/i, '$1')} ${dataBr(hoje)}` : t) }] : [],
-        ajustesDrive: hoje ? [{ celula: 'D1', depoisDe: 'última atualização:', texto: dataBr(hoje) }] : [],
+        ...titulo('Gastos'), colunas: COLUNAS_GASTOS, chave: ['Evento', 'Descrição'],
+        itens: doEvento(detalhes.gastos, (a, b) => (a.data ?? '9999').localeCompare(b.data ?? '9999') || pt(a.descricao, b.descricao)),
+      },
+      { ...titulo('Patrocinadores'), colunas: COLUNAS_PATROCINADORES, itens: doEvento(detalhes.patrocinadores, (a, b) => pt(a.empresa, b.empresa)), chave: ['Evento', 'Empresa'] },
+      {
+        ...titulo('Tarefas'), colunas: COLUNAS_TAREFAS, chave: ['Evento', 'Tarefa'],
+        itens: doEvento(detalhes.tarefas, (a, b) => Number(a.feita) - Number(b.feita) || (a.prazo ?? '9999').localeCompare(b.prazo ?? '9999')),
       },
     ],
   };

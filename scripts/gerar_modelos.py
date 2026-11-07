@@ -24,14 +24,8 @@ fino = Side(style='thin', color=AZUL)
 borda = Border(left=fino, right=fino, top=fino, bottom=fino)
 
 
-def gerar(arquivo, aba, titulo, colunas, listas, cores, cinza_se, quebra, resumo):
-    """colunas: [(título, largura, formato)]; listas: {título: [opções]};
-    cores: [(título, fórmula com {c} = célula da coluna, fundo, fonte)];
-    cinza_se: fórmula que deixa a linha cinza;
-    resumo: [(título do bloco, coluna do critério, [(rótulo, valor)], [(título, coluna somada)], curinga)]."""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = aba
+def montar_aba(ws, titulo, colunas, listas, cores, cinza_se, quebra):
+    """Formata uma aba no padrão CASD e devolve {título da coluna: letra} e a última linha."""
     ws.sheet_view.showGridLines = False
     ws.column_dimensions['A'].width = 3.9
     ws.row_dimensions[1].height = 42
@@ -82,6 +76,21 @@ def gerar(arquivo, aba, titulo, colunas, listas, cores, cinza_se, quebra, resumo
         )
     if cinza_se:
         ws.conditional_formatting.add(f'B3:{ult}{fim}', FormulaRule(formula=[cinza_se], font=Font(color='878787')))
+    return letra, fim
+
+
+def gerar(arquivo, aba, titulo, colunas, listas, cores, cinza_se, quebra, resumo, extras=()):
+    """colunas: [(título, largura, formato)]; listas: {título: [opções]};
+    cores: [(título, fórmula com {c} = célula da coluna, fundo, fonte)];
+    cinza_se: fórmula que deixa a linha cinza;
+    resumo: [(título do bloco, coluna do critério, [(rótulo, valor)], [(título, coluna somada)], curinga)];
+    extras: abas a mais, depois da principal: [(aba, título, colunas, listas, cores, cinza_se, quebra)]."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = aba
+    letra, fim = montar_aba(ws, titulo, colunas, listas, cores, cinza_se, quebra)
+    for x_aba, x_titulo, x_colunas, x_listas, x_cores, x_cinza, x_quebra in extras:
+        montar_aba(wb.create_sheet(x_aba), x_titulo, x_colunas, x_listas, x_cores, x_cinza, x_quebra)
 
     rs = wb.create_sheet('Resumo')
     rs.sheet_view.showGridLines = False
@@ -90,7 +99,7 @@ def gerar(arquivo, aba, titulo, colunas, listas, cores, cinza_se, quebra, resumo
     rs['A2'] = '="Atualizado em "&TEXT(TODAY(),"dd/mm/yyyy")'
     rs['A2'].font = Font(name='Arial', size=10, color='666666')
     rs.column_dimensions['A'].width = 34
-    for L in 'BCD':
+    for L in 'BCDEFG':
         rs.column_dimensions[L].width = 18
     linha = 4
     for titulo_bloco, coluna_criterio, itens, somas, curinga in resumo:
@@ -131,28 +140,34 @@ ESFERAS = ['CASDvest', 'Casdinho', 'CASDvest e Casdinho']
 STATUS = ['Ideia', 'Em elaboração', 'Pronto para inscrever', 'Aprovado', 'Encerrado']
 gerar(
     'projetos.xlsx', 'Projetos', 'Banco de Projetos CASD',
-    [('Título', 34, None), ('Esfera', 18, None), ('Status', 20, None), ('Escopo', 50, None), ('Quem pediu', 20, None),
-     ('Público atendido', 14, '#,##0'), ('Orçamento', 16, MOEDA), ('Editais vinculados', 34, None),
-     ('Link dos documentos', 30, None), ('Observações da equipe', 36, None)],
+    [('Título', 34, None), ('Esfera', 18, None), ('Status', 20, None), ('Objetivo', 40, None), ('Escopo', 50, None),
+     ('Quem pediu', 20, None), ('Responsável', 18, None), ('Público atendido', 14, '#,##0'), ('Orçamento', 16, MOEDA),
+     ('Editais vinculados', 34, None), ('Link dos documentos', 30, None), ('Resumo para a assessoria', 30, None),
+     ('Observações da equipe', 36, None)],
     {'Esfera': ESFERAS, 'Status': STATUS},
     [('Esfera', '{c}="CASDvest"', 'D6ECF4', None), ('Esfera', '{c}="Casdinho"', 'FDECCB', None),
      ('Esfera', '{c}="CASDvest e Casdinho"', 'D4EFEA', None), ('Status', '{c}="Pronto para inscrever"', 'CDEBD8', None),
      ('Status', '{c}="Aprovado"', '3FA66B', 'FFFFFF'), ('Status', '{c}="Em elaboração"', 'FFE499', None)],
     '$D3="Encerrado"',
-    {'Escopo', 'Observações da equipe', 'Editais vinculados'},
+    {'Objetivo', 'Escopo', 'Observações da equipe', 'Editais vinculados'},
     [('Esfera', 'Esfera', [(e, e) for e in ESFERAS], [('Orçamento', 'Orçamento'), ('Público atendido', 'Público atendido')], False),
      ('Status', 'Status', [(s, s) for s in STATUS], [('Orçamento', 'Orçamento'), ('Público atendido', 'Público atendido')], False)],
 )
 
 # Calendário de Eventos ----------------------------------------------------------
 SITUACOES = ['Proposta (a validar)', 'Aprovado', 'Em preparação', 'Realizado', 'Cancelado']
+CATEGORIAS = ['Espaço', 'Alimentação', 'Material', 'Divulgação', 'Transporte', 'Brindes', 'Serviços', 'Outros']
+SIT_GASTO = ['Previsto', 'Aprovado', 'Pago', 'Cancelado']
+SIT_PATROCINIO = ['Prospectado', 'Em negociação', 'Confirmado', 'Recebido', 'Recusado']
+FINANCEIRO = [('Meta de arrecadação', 'Meta de arrecadação'), ('Arrecadado', 'Arrecadado'), ('Patrocínio recebido', 'Patrocínio recebido'),
+              ('Gastos realizados', 'Gastos realizados'), ('Saldo', 'Saldo')]
 FREQ = ['Data única ou período', 'Recorrente (várias edições)', 'Contínuo (acompanhamento)']
 gerar(
     'eventos.xlsx', 'Eventos', 'Calendário de Eventos CASD',
     [('Evento', 32, None), ('Tipo', 10, None), ('Situação', 20, None), ('Quando (previsão)', 30, None),
      ('Início', 13, 'dd/mm/yyyy'), ('Fim', 13, 'dd/mm/yyyy'), ('Data confirmada', 16, None), ('Frequência', 24, None),
      ('Local', 22, None), ('Responsável', 18, None), ('Meta de arrecadação', 18, MOEDA), ('Arrecadado', 16, MOEDA),
-     ('Cotas de patrocínio', 30, None), ('Descrição', 40, None), ('Link', 28, None), ('Observações da equipe', 36, None)],
+     ('Patrocínio recebido', 16, MOEDA), ('Gastos realizados', 16, MOEDA), ('Saldo', 16, MOEDA), ('Cotas de patrocínio', 30, None), ('Descrição', 40, None), ('Link', 28, None), ('Observações da equipe', 36, None)],
     {'Situação': SITUACOES, 'Data confirmada': ['Sim', 'Não (especulada)'], 'Frequência': FREQ},
     [('Tipo', 'ISNUMBER(SEARCH("EC",{c}))', 'FDECCB', None), ('Tipo', 'ISNUMBER(SEARCH("EI",{c}))', 'D6ECF4', None),
      ('Tipo', 'ISNUMBER(SEARCH("EA",{c}))', 'D4EFEA', None), ('Situação', '{c}="Aprovado"', 'D6ECF4', None),
@@ -161,6 +176,28 @@ gerar(
     '$D3="Cancelado"',
     {'Descrição', 'Observações da equipe', 'Cotas de patrocínio', 'Quando (previsão)'},
     [('Tipo de evento', 'Tipo', [('EC · Captação', 'EC'), ('EI · Institucional', 'EI'), ('EA · Aberto', 'EA')],
-      [('Meta de arrecadação', 'Meta de arrecadação'), ('Arrecadado', 'Arrecadado')], True),
-     ('Situação', 'Situação', [(s, s) for s in SITUACOES], [('Meta de arrecadação', 'Meta de arrecadação'), ('Arrecadado', 'Arrecadado')], False)],
+      FINANCEIRO, True),
+     ('Situação', 'Situação', [(s, s) for s in SITUACOES], FINANCEIRO, False)],
+    extras=[
+        ('Metas', 'Metas dos eventos',
+         [('Evento', 32, None), ('Meta', 34, None), ('Unidade', 14, None), ('Alvo', 14, '#,##0.##'), ('Atual', 14, '#,##0.##'),
+          ('% atingido', 12, '0%'), ('Observação', 36, None)],
+         {}, [('% atingido', '{c}>=1', 'CDEBD8', None)], None, {'Meta', 'Observação'}),
+        ('Gastos', 'Gastos dos eventos',
+         [('Evento', 32, None), ('Descrição', 34, None), ('Categoria', 18, None), ('Fornecedor', 22, None), ('Previsto', 15, MOEDA),
+          ('Realizado', 15, MOEDA), ('Situação', 14, None), ('Data', 13, 'dd/mm/yyyy'), ('Comprovante', 30, None)],
+         {'Categoria': CATEGORIAS, 'Situação': SIT_GASTO},
+         [('Situação', '{c}="Pago"', 'CDEBD8', None), ('Situação', '{c}="Aprovado"', 'D6ECF4', None)],
+         '$H3="Cancelado"', {'Descrição'}),
+        ('Patrocinadores', 'Patrocinadores dos eventos',
+         [('Evento', 32, None), ('Empresa', 30, None), ('Cota', 18, None), ('Valor', 15, MOEDA), ('Situação', 18, None),
+          ('Contrapartidas', 36, None), ('Contato', 26, None), ('Observação', 32, None)],
+         {'Situação': SIT_PATROCINIO},
+         [('Situação', '{c}="Recebido"', '3FA66B', 'FFFFFF'), ('Situação', '{c}="Confirmado"', 'CDEBD8', None),
+          ('Situação', '{c}="Em negociação"', 'FFE499', None)],
+         '$F3="Recusado"', {'Contrapartidas', 'Observação'}),
+        ('Tarefas', 'Tarefas dos eventos',
+         [('Evento', 32, None), ('Tarefa', 44, None), ('Responsável', 20, None), ('Prazo', 13, 'dd/mm/yyyy'), ('Feita', 10, None)],
+         {'Feita': ['Sim', 'Não']}, [], '$F3="Sim"', {'Tarefa'}),
+    ],
 )

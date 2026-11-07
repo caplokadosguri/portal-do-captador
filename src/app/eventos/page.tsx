@@ -11,6 +11,7 @@ import { formatarReais } from '@/lib/contato';
 import {
   corDoEvento, diasAte, Evento, fileirasPorCalendario, fileirasPorTipo, periodoCurto, proximoEvento, quando, rotuloSituacao, siglas, tipoDe, TIPOS,
 } from '@/lib/eventos';
+import { carregarDetalhes, DETALHES_VAZIOS, DetalhesEventos } from '@/lib/eventosDetalhe';
 import { exportarEventos } from '@/lib/exportacoes';
 import { ABAS_LEITURA_EVENTOS, eventosDeLinhas, novosPorNome } from '@/lib/importarPlanilha';
 import { podeVer, useMembro } from '@/lib/membro';
@@ -26,6 +27,8 @@ export default function Eventos() {
   const [aberto, setAberto] = useState<string | 'novo' | null>(null);
   const [visao, setVisao] = useState<Visao>('calendario');
   const [versao, setVersao] = useState(0);
+  const [detalhes, setDetalhes] = useState<DetalhesEventos>(DETALHES_VAZIOS);
+  const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([]);
 
   const recarregar = useCallback(
     () =>
@@ -45,14 +48,28 @@ export default function Eventos() {
         }),
     [],
   );
-  const salvou = useCallback(async () => {
+  const recarregarDetalhes = useCallback(
+    () => carregarDetalhes(supabase()).then(setDetalhes).catch((e: Error) => setErro(e.message)),
+    [],
+  );
+  const salvou = useCallback(async (criado?: string) => {
     await recarregar();
     setVersao((v) => v + 1);
+    if (criado) setAberto(criado);
   }, [recarregar]);
+  const mudouDetalhes = useCallback(async () => {
+    await recarregarDetalhes();
+    setVersao((v) => v + 1);
+  }, [recarregarDetalhes]);
 
   useEffect(() => {
-    if (podeVer(membro, 'eventos')) recarregar();
-  }, [membro, recarregar]);
+    if (!podeVer(membro, 'eventos')) return;
+    recarregar();
+    recarregarDetalhes();
+    // Empresas de Parceiros, para ligar patrocinadores (vem vazio se o membro não vê Parceiros).
+    supabase().from('parcerias').select('id, organizacao').order('organizacao')
+      .then(({ data }) => setEmpresas((data ?? []).map((p) => ({ id: p.id as string, nome: p.organizacao as string }))));
+  }, [membro, recarregar, recarregarDetalhes]);
 
   const fileiras = useMemo(
     () => (dados ? (visao === 'calendario' ? fileirasPorCalendario(dados.eventos, dados.hoje) : fileirasPorTipo(dados.eventos, dados.hoje)) : []),
@@ -116,7 +133,7 @@ export default function Eventos() {
             pronto={!!dados}
             versao={versao}
             ehAdmin={membro.papel === 'admin'}
-            preparar={() => exportarEventos(eventos, hojeIso())}
+            preparar={() => exportarEventos(eventos, hojeIso(), detalhes)}
             importar={{
               abas: ABAS_LEITURA_EVENTOS,
               faltando: (lidas) => {
@@ -153,9 +170,13 @@ export default function Eventos() {
         <FichaEvento
           key={aberto}
           evento={aberta}
+          detalhes={detalhes}
+          empresas={empresas}
+          hoje={dados.hoje}
           podeApagar={membro.papel === 'admin'}
           aoFechar={() => setAberto(null)}
           aoSalvar={salvou}
+          aoMudarDetalhes={mudouDetalhes}
         />
       )}
     </Tela>

@@ -25,6 +25,8 @@ export interface AbaModelo<T> {
   agrupar?: string;
   /** Ajusta o texto de uma célula fora dos dados (ex.: "última atualização: ..."). */
   ajustes?: { celula: string; texto: (atual: string) => string }[];
+  /** Colunas que identificam a linha na planilha do Drive (padrão: a primeira). */
+  chave?: string[];
   /** O mesmo ajuste, na forma que a ponte do Drive entende. */
   ajustesDrive?: { celula: string; depoisDe: string; texto: string }[];
 }

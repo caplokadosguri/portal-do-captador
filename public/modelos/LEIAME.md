@@ -10,12 +10,18 @@ nunca coloque aqui uma planilha com dados.
 | `abordagem.xlsx` (Plano de abordagem) | Inadimplentes (quem está em atraso agora + regularizados nos últimos 60 dias) | Doadores |
 | `abordagem.xlsx` (Plano de abordagem) | Parcerias e Doações PJ | Parceiros |
 | `projetos.xlsx` (Banco de Projetos) | Projetos (a aba Resumo calcula sozinha) | Projetos |
-| `eventos.xlsx` (Calendário de Eventos) | Eventos (a aba Resumo calcula sozinha) | Eventos |
+| `eventos.xlsx` (Calendário de Eventos) | Eventos, Metas, Gastos, Patrocinadores, Tarefas (a aba Resumo calcula sozinha) | Eventos |
+| `resumo-projeto.docx` (Resumo de escopo de projeto) | Documento, não planilha: o botão “Salvar e gerar resumo” copia o modelo e troca os `{{campos}}` | Projetos |
 
 `projetos.xlsx` e `eventos.xlsx` foram criados pelo portal com a identidade dos
 outros modelos (`scripts/gerar_modelos.py`). Para usar no Drive: suba o arquivo, abra
 e use Arquivo › Salvar como Planilhas Google; o link da versão Google vai em
 Início › Planilhas no Drive.
+
+`resumo-projeto.docx` sai de `scripts/gerar_modelo_resumo.py`. No Drive: suba, abra,
+use Arquivo › Salvar como Documentos Google e cole o link em Início › Planilhas no
+Drive › Documentos. Dá para mudar textos, cores e ordem das seções no Google Docs,
+desde que os `{{campos}}` continuem escritos igual.
 
 A aba "Resumo" e a "Leads e Doações PF" não são mexidas.
 

@@ -9,7 +9,7 @@
 // listas e outras abas ficam como estão.
 
 /** Muda quando o código abaixo muda: o portal avisa se a ponte publicada estiver velha. */
-export const VERSAO_PONTE = 3;
+export const VERSAO_PONTE = 4;
 
 const CODIGO = String.raw`/**
  * Portal do Captador · CASD — ponte com o Drive.
@@ -19,7 +19,7 @@ const CODIGO = String.raw`/**
  * Para atualizar: cole o código novo, salve e vá em Implantar > Gerenciar
  * implantações > editar (lápis) > Versão: Nova versão > Implantar.
  */
-var VERSAO = 3;
+var VERSAO = 4;
 var SUPABASE_URL = '__SUPABASE_URL__';
 var SUPABASE_CHAVE = '__SUPABASE_CHAVE__';
 
@@ -46,6 +46,7 @@ function doPost(e) {
     var abas = pedido.abas || [];
     autorizar(quem.papel, pedido.planilha, abas);
     var config = lerConfiguracoes(pedido.token);
+    if (pedido.acao === 'documento') return resposta(gerarDocumento(config, pedido.documento || {}));
     var id = idDaPlanilha(config['drive_planilha_' + pedido.planilha]);
     if (!id) throw new Error('A planilha "' + pedido.planilha + '" ainda não foi ligada no portal (Início > Planilhas no Drive).');
     var ss = SpreadsheetApp.openById(id);
@@ -120,8 +121,47 @@ function lerConfiguracoes(token) {
 
 function idDaPlanilha(link) {
   if (!link) return null;
-  var m = /\/d\/([a-zA-Z0-9_-]{20,})/.exec(link);
+  var m = /\/(?:d|folders)\/([a-zA-Z0-9_-]{20,})/.exec(link) || /[?&]id=([a-zA-Z0-9_-]{20,})/.exec(link);
   return m ? m[1] : (/^[a-zA-Z0-9_-]{20,}$/.test(link) ? link : null);
+}
+
+// --- Documentos (ex.: resumo de escopo de projeto) -------------------------------
+
+/** Copia o modelo do Google Docs, troca os {{campos}} e devolve o link do documento novo. */
+function gerarDocumento(config, d) {
+  var nomeModelo = String(d.modelo || '');
+  if (!/^[a-z_]+$/.test(nomeModelo)) throw new Error('Modelo de documento desconhecido.');
+  var idModelo = idDaPlanilha(config['drive_doc_' + nomeModelo]);
+  if (!idModelo) throw new Error('O modelo do documento ainda não foi ligado no portal (Início > Planilhas no Drive).');
+  var modelo = DriveApp.getFileById(idModelo);
+  if (modelo.getMimeType() !== MimeType.GOOGLE_DOCS) {
+    throw new Error('O modelo "' + modelo.getName() + '" ainda é um arquivo Word. Abra no Drive, use Arquivo > Salvar como Documentos Google e cole o link da versão Google.');
+  }
+  if (d.testar) return { ok: true, url: modelo.getUrl(), nome: modelo.getName() };
+  var idPasta = idDaPlanilha(config['drive_pasta_' + nomeModelo]);
+  var pais = modelo.getParents();
+  var pasta = idPasta ? DriveApp.getFolderById(idPasta) : (pais.hasNext() ? pais.next() : DriveApp.getRootFolder());
+  var copia = modelo.makeCopy(String(d.nome || 'Documento').slice(0, 200), pasta);
+  var doc = DocumentApp.openById(copia.getId());
+  [doc.getBody(), doc.getHeader(), doc.getFooter()].forEach(function (parte) {
+    if (parte) preencherCampos(parte, d.campos || {});
+  });
+  doc.saveAndClose();
+  return { ok: true, url: copia.getUrl(), nome: copia.getName() };
+}
+
+function preencherCampos(parte, campos) {
+  Object.keys(campos).forEach(function (k) {
+    var valor = String(campos[k] == null || campos[k] === '' ? '—' : campos[k]).replace(/\{\{/g, '{ {');
+    var padrao = '\\{\\{\\s*' + k.replace(/[^a-z0-9_]/gi, '') + '\\s*\\}\\}';
+    var achado;
+    while ((achado = parte.findText(padrao))) {
+      var texto = achado.getElement().asText();
+      var ini = achado.getStartOffset();
+      texto.deleteText(ini, achado.getEndOffsetInclusive());
+      texto.insertText(ini, valor);
+    }
+  });
 }
 
 // --- Cabeçalho -----------------------------------------------------------------
@@ -253,6 +293,10 @@ function escreverAba(ss, a) {
 
   var inicio = h + 1;
   var extras = {}, extrasCols = [];
+  // Colunas que identificam a linha (padrão: a primeira). Ex.: Evento + Descrição nos gastos.
+  var titulosA = a.colunas.map(function (x) { return x.titulo; });
+  var idxChave = (a.chave && a.chave.length ? a.chave : [titulosA[0]]).map(function (t) { return titulosA.indexOf(t); })
+    .filter(function (i) { return i >= 0; });
   if (a.modo === 'diario') {
     // Uma linha por dia: se a última já é de hoje, reescreve; senão, acrescenta.
     var colData = cab.mapa.indexOf(0) + 1;
@@ -270,13 +314,12 @@ function escreverAba(ss, a) {
   } else if (ultimaAntes > h) {
     // Substituir. Colunas que só existem na planilha (anotações da equipe)
     // acompanham o item pela primeira coluna do portal (ex.: nome do edital).
-    var colChave = cab.mapa.indexOf(0);
     cab.mapa.forEach(function (i, c) {
       if (i < 0 && !primeira[c] && String(cab.textos[c] || '').trim()) extrasCols.push(c);
     });
-    if (extrasCols.length && colChave >= 0) {
+    if (extrasCols.length && idxChave.every(function (i) { return cab.mapa.indexOf(i) >= 0; })) {
       aba.getRange(h + 1, 1, ultimaAntes - h, largura).getValues().forEach(function (lin) {
-        var k = chave(lin[colChave]);
+        var k = idxChave.map(function (i) { return chave(lin[cab.mapa.indexOf(i)]); }).join('|');
         if (!k) return;
         var reg = {}, algo = false;
         extrasCols.forEach(function (c) { if (lin[c] !== '' && lin[c] !== null) { reg[c] = lin[c]; algo = true; } });
@@ -324,7 +367,7 @@ function escreverAba(ss, a) {
   // Devolve as anotações das colunas que só existem na planilha.
   if (extrasCols.length) {
     linhas.forEach(function (l, k) {
-      var reg = extras[chave(l[0])];
+      var reg = extras[idxChave.map(function (i) { return chave(l[i]); }).join('|')];
       if (reg) Object.keys(reg).forEach(function (c) { aba.getRange(inicio + k, Number(c) + 1).setValue(reg[c]); });
     });
   }

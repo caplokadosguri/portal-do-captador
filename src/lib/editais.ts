@@ -40,6 +40,15 @@ export interface Projeto {
   orcamento: number | null;
   status: StatusProjeto;
   link_documentos: string | null;
+  objetivo?: string | null;
+  justificativa?: string | null;
+  publico_alvo?: string | null;
+  atividades?: string | null;
+  cronograma?: string | null;
+  resultados_esperados?: string | null;
+  responsavel?: string | null;
+  link_resumo?: string | null;
+  resumo_gerado_em?: string | null;
 }
 
 export interface Inscricao {

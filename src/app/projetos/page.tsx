@@ -125,6 +125,7 @@ export default function Projetos() {
           inscricoes={dados.inscricoes}
           podeEditar
           podeApagar={membro.papel === 'admin'}
+          nomeMembro={membro.nome}
           aoFechar={() => setAberto(null)}
           aoSalvar={salvou}
         />

@@ -12,6 +12,8 @@ export type PlanilhaDrive = 'editais' | 'abordagem' | 'projetos' | 'eventos';
 export interface ConfigDrive {
   url: string | null;
   planilhas: Record<PlanilhaDrive, string | null>;
+  docResumo: string | null;
+  pastaResumo: string | null;
 }
 
 export const CHAVES_DRIVE = {
@@ -20,6 +22,8 @@ export const CHAVES_DRIVE = {
   abordagem: 'drive_planilha_abordagem',
   projetos: 'drive_planilha_projetos',
   eventos: 'drive_planilha_eventos',
+  docResumo: 'drive_doc_resumo_projeto',
+  pastaResumo: 'drive_pasta_resumo_projeto',
 } as const;
 
 export async function lerConfigDrive(): Promise<ConfigDrive> {
@@ -33,6 +37,8 @@ export async function lerConfigDrive(): Promise<ConfigDrive> {
       projetos: c.get(CHAVES_DRIVE.projetos) ?? null,
       eventos: c.get(CHAVES_DRIVE.eventos) ?? null,
     },
+    docResumo: c.get(CHAVES_DRIVE.docResumo) ?? null,
+    pastaResumo: c.get(CHAVES_DRIVE.pastaResumo) ?? null,
   };
 }
 
@@ -49,6 +55,7 @@ export interface AbaDrive {
   colunas: ColunaDrive[];
   linhas?: (string | number | boolean | null)[][];
   modo?: 'substituir' | 'diario';
+  chave?: string[];
   ajustes?: { celula: string; depoisDe: string; texto: string }[];
 }
 
@@ -77,15 +84,17 @@ export function pedidoDeEscrita(exp: Exportacao): AbaDrive[] {
     })),
     linhas: a.itens.map((item) => a.colunas.map((c) => (c.formula ? null : limpar(c.valor(item))))),
     modo: a.modo === 'acrescentar' ? 'diario' : 'substituir',
+    chave: a.chave,
     ajustes: a.ajustesDrive,
   }));
 }
 
 export async function chamarDrive(
   url: string,
-  acao: 'ler' | 'escrever',
+  acao: 'ler' | 'escrever' | 'documento',
   planilha: PlanilhaDrive,
   abas: AbaDrive[],
+  documento?: { modelo: string; nome?: string; campos?: Record<string, string>; testar?: boolean },
 ): Promise<RespostaDrive> {
   const { data } = await supabase().auth.getSession();
   const token = data.session?.access_token;
@@ -94,7 +103,7 @@ export async function chamarDrive(
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ token, acao, planilha, abas }),
+    body: JSON.stringify({ token, acao, planilha, abas, documento }),
     redirect: 'follow',
   });
   if (!r.ok) throw new Error(`O Drive respondeu ${r.status}.`);
