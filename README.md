@@ -9,7 +9,7 @@ As telas internas seguem o visual da Netflix (tema escuro, banner de destaque e 
 - **Projetos**: banco de projetos em fileiras por esfera (CASDvest, Casdinho, ambos).
 - **Parceiros**: plano de abordagem de empresas (mesmos campos da aba "Parcerias e Doações PJ" do modelo do CASD), em fileiras por status, com alerta de mais de 7 dias sem retorno.
 - **Eventos**: tabela pronta e tela "em breve".
-- **Planilhas do CASD**: cada setor tem "Gerar planilha". Editais, Doadores (aba Inadimplentes) e Parceiros preenchem os modelos do CASD em `public/modelos/` sem estragar fórmulas, cores e listas; Projetos, Eventos e a carteira completa de doadores saem numa planilha padrão. "Atualizar arquivo do Drive" devolve o arquivo atual com as abas do portal atualizadas e "Importar do Drive" traz para o portal o que já estava na planilha. Detalhes em `public/modelos/LEIAME.md`.
+- **Planilhas do CASD no Drive**: o portal escreve direto nas planilhas do Drive (Editais → "Monitoramento de Editais"; Doadores → aba Inadimplentes e Parceiros → aba Parcerias e Doações PJ do "Plano de abordagem") sempre que alguém salva algo, por uma ponte em Google Apps Script (`src/lib/drive/codigoAppsScript.ts`). A ponte roda com a conta da Captação, confere o login do portal em cada pedido e mexe só nas colunas do portal (fórmulas, cores e listas ficam). Configuração única em Início › Planilhas no Drive. Se a planilha tiver itens que não estão no portal, a tela oferece trazê-los antes de atualizar. "Baixar cópia (.xlsx)" continua disponível (modelos limpos em `public/modelos/`).
 
 Especificação completa: https://claude.ai/artifact/KJminLaDe9KfCrHn6812mx
 
@@ -54,7 +54,8 @@ Use o e-mail institucional da Captação em todas as contas.
 | Regras de situação de pagamento e motivo de falha | `src/lib/situacao.ts` |
 | Textos das mensagens | tabela `modelos_mensagem` no Supabase (variáveis `{nome}`, `{valor}`, `{meses}`) |
 | Opções de situação, níveis, abrangência e sugestões de fonte dos editais; fileiras de editais e projetos | `src/lib/editais.ts` |
-| Colunas de cada planilha exportada e de que aba do modelo | `src/lib/exportacoes.ts` |
+| Colunas de cada planilha (Drive e .xlsx) e de que aba do modelo | `src/lib/exportacoes.ts` |
+| Ponte com o Drive (código do Apps Script) | `src/lib/drive/codigoAppsScript.ts` |
 | Listas da abordagem de parceiros (status, canais, tipos) | `src/lib/parceiros.ts` |
 | Modelos de planilha do CASD (versões limpas) | `public/modelos/` |
 | Regras de acesso | `supabase/migrations/` |

@@ -82,6 +82,24 @@ export function mesesEmAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: strin
   return null;
 }
 
+/**
+ * Desde quando está sem pagar: vencimento da cobrança mais antiga da sequência
+ * atual de cobranças não pagas. `null` se estiver em dia ou sem dados.
+ */
+export function inicioDoAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: string): string | null {
+  const vencidas = cobrancas
+    .filter((c) => c.doacao_id === doacao.id && c.vencimento && c.vencimento <= hoje)
+    .sort((a, b) => b.vencimento!.localeCompare(a.vencimento!));
+  let inicio: string | null = null;
+  for (const c of vencidas) {
+    if (cobrancaPaga(c)) break;
+    inicio = c.vencimento;
+  }
+  if (inicio || vencidas.length) return inicio;
+  if (doacao.ultima_cobranca_paga && mesesEntre(doacao.ultima_cobranca_paga, hoje) > 1) return somarMeses(doacao.ultima_cobranca_paga, 1);
+  return null;
+}
+
 export function situacao(doacao: Doacao | null, cobrancas: Cobranca[], hoje: string): Situacao {
   if (!doacao) return 'sem_dados';
   if (ehCancelada(doacao)) return 'cancelado';

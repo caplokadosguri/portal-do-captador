@@ -25,6 +25,8 @@ export interface AbaModelo<T> {
   agrupar?: string;
   /** Ajusta o texto de uma célula fora dos dados (ex.: "última atualização: ..."). */
   ajustes?: { celula: string; texto: (atual: string) => string }[];
+  /** O mesmo ajuste, na forma que a ponte do Drive entende. */
+  ajustesDrive?: { celula: string; depoisDe: string; texto: string }[];
 }
 
 export interface Resultado {
@@ -299,6 +301,16 @@ async function preencherAba<T>(ctx: Contexto, arquivo: string, aba: AbaModelo<T>
     }
   }
   if (!cab) return false;
+  // Colunas novas do portal (com "depoisDe") que o modelo não tem: entram no fim do cabeçalho.
+  const linhaCab = folha.linhas.get(cab)!;
+  aba.colunas.forEach((coluna, k) => {
+    if (!coluna.depoisDe || mapa.includes(k)) return;
+    const col = titulos.length + 1;
+    const estilo = folha.celulaSeExiste(cab, col - 1)?.getAttribute('s') ?? null;
+    escreverValor(ctx, doc, folha.celula(linhaCab, col, estilo), coluna.titulo, 'texto');
+    titulos.push(coluna.titulo);
+    mapa.push(k);
+  });
   const ultimaCol = titulos.length;
   const colDe = (titulo: string) => {
     const i = aba.colunas.findIndex((c) => c.titulo === titulo);

@@ -1,15 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import BotaoImportar from '@/components/BotaoImportar';
-import BotaoPlanilha from '@/components/BotaoPlanilha';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaParceria from '@/components/FichaParceria';
+import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { formatarData } from '@/lib/contato';
 import { exportarParcerias } from '@/lib/exportacoes';
-import { faltandoNoPortal, lerParceriasDoArquivo } from '@/lib/importarPlanilha';
+import { ABAS_LEITURA_PARCERIAS, novosPorNome, parceriasDeLinhas } from '@/lib/importarPlanilha';
 import { podeVer, useMembro } from '@/lib/membro';
 import {
   corStatus, emAndamento, montarFileirasParcerias, numeroDeContatos, Parceria, precisaRetomar, rotuloStatus, ultimoContato,
@@ -24,15 +23,20 @@ export default function Parceiros() {
   const [aberto, setAberto] = useState<string | 'nova' | null>(null);
   const [busca, setBusca] = useState('');
 
+  const [versao, setVersao] = useState(0);
   const recarregar = useCallback(() => {
     const sb = supabase();
-    Promise.all([sb.from('parcerias').select('*').order('organizacao'), sb.from('membros').select('nome')]).then(([p, m]) => {
+    return Promise.all([sb.from('parcerias').select('*').order('organizacao'), sb.from('membros').select('nome')]).then(([p, m]) => {
       if (p.error) return setErro(p.error.message);
       const lista = (p.data ?? []) as Parceria[];
       const nomes = [...new Set([...(m.data ?? []).map((x: { nome: string }) => x.nome), ...lista.map((x) => x.responsavel ?? '')])].filter(Boolean).sort();
       setDados({ lista, nomes, hoje: hojeIso() });
     });
   }, []);
+  const salvou = useCallback(async () => {
+    await recarregar();
+    setVersao((v) => v + 1);
+  }, [recarregar]);
 
   useEffect(() => {
     if (podeVer(membro, 'parceiros')) recarregar();
@@ -90,35 +94,27 @@ export default function Parceiros() {
       <div className="miolo">
         <Ferramentas>
           <button type="button" className="botao destaque-cor" onClick={() => setAberto('nova')}>+ Nova abordagem</button>
-          <BotaoPlanilha
-            opcoes={[
-              {
-                rotulo: 'Gerar planilha',
-                temModelo: true,
-                preparar: () => exportarParcerias(lista),
-                verificar: async (arquivo) => {
-                  const lidos = await lerParceriasDoArquivo(arquivo);
-                  if (!lidos) return 'Este arquivo não parece ser o plano de abordagem (aba “Parcerias e Doações PJ”).';
-                  const faltam = faltandoNoPortal(lidos.map((p) => p.organizacao), lista.map((p) => p.organizacao));
-                  return faltam.length
-                    ? `O arquivo tem ${faltam.length} organização(ões) que não estão no portal (ex.: ${faltam.slice(0, 2).join('; ')}). Use “Importar do Drive” antes, para não perdê-las.`
-                    : null;
-                },
+          <StatusDrive
+            planilha="abordagem"
+            pronto={!!dados}
+            versao={versao}
+            ehAdmin={membro.papel === 'admin'}
+            preparar={() => exportarParcerias(lista)}
+            importar={{
+              abas: ABAS_LEITURA_PARCERIAS,
+              faltando: (lidas) => {
+                const novos = novosPorNome(parceriasDeLinhas(lidas['Parcerias e Doações PJ'] ?? []), (p) => p.organizacao, lista.map((p) => p.organizacao));
+                return {
+                  nomes: novos.map((p) => p.organizacao),
+                  gravar: async () => {
+                    const { error } = await supabase().from('parcerias').insert(novos);
+                    if (error) throw new Error(error.message);
+                    await salvou();
+                  },
+                };
               },
-            ]}
+            }}
           />
-          {dados && (
-            <BotaoImportar
-              ler={lerParceriasDoArquivo}
-              nomeDe={(p) => p.organizacao}
-              existentes={lista.map((p) => p.organizacao)}
-              gravar={async (novos) => {
-                const { error } = await supabase().from('parcerias').insert(novos);
-                if (error) throw new Error(error.message);
-              }}
-              aoTerminar={recarregar}
-            />
-          )}
           <label className="campo">
             <span className="sr">Buscar parceria</span>
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por empresa, pessoa ou tipo" />
@@ -143,7 +139,7 @@ export default function Parceiros() {
           responsaveis={dados.nomes}
           podeApagar={membro.papel === 'admin'}
           aoFechar={() => setAberto(null)}
-          aoSalvar={recarregar}
+          aoSalvar={salvou}
         />
       )}
     </Tela>

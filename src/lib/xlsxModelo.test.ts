@@ -85,35 +85,35 @@ describe('plano de abordagem', () => {
   const visao = (id: string, nome: string, situacao: VisaoDoador['situacao']): VisaoDoador => ({
     doador: { id, nome, email: null, celular: '(12) 90000-0000', aceita_email: true, aceita_ligacao: true, aceita_sms: false, aceita_whatsapp: true, aceita_cartas: false, aceita_mala_direta: false },
     doacoes: [], principal: { id: 'x' + id, doador_id: id, valor: 50, frequencia: 'Mensal', meio_pagamento: 'Cartão de crédito', status: 'Ativa', status_ultima_cobranca: 'Recusada', ultima_cobranca_paga: null, criada_em: '2026-01-10', finalizada_em: null, campanha: null },
-    cobrancas: [], situacao, mesesAtraso: situacao === 'atraso_2' ? 2 : 1, falha: { motivo: 'atualizar_cartao', mensagem: 'Cartão vencido' },
+    cobrancas: [], situacao, mesesAtraso: situacao === 'em_dia' ? 0 : situacao === 'atraso_2' ? 2 : 1,
+    atrasoDesde: situacao === 'atraso_2' ? '2026-09-05' : situacao === 'atraso_1' ? '2026-10-05' : null, falha: { motivo: 'atualizar_cartao', mensagem: 'Cartão vencido' },
     plano: null, brindeDevido: null, brinde: null, rel: { doador_id: id, responsavel: 'membro@casd.test', proximo_contato: '2026-11-10', status_conversa: 'aguardando_resposta', anotacoes: 'Pediu para ligar à noite' },
     pontual: null, virouMensal: false, valorAlto: false,
   });
 
-  it('escreve o bloco do mês na aba Inadimplentes e mantém os meses anteriores', async () => {
-    const visoes = [visao('D1', 'Pessoa Inventada Um', 'atraso_1'), visao('D2', 'Pessoa Inventada Dois', 'atraso_2'), visao('D3', 'Em Dia', 'em_dia')];
-    const contatos = [{ doador_id: 'D2', membro: 'membro@casd.test', canal: 'whatsapp', motivo: 'cobranca', resultado: 'Vai atualizar o cartão', nota: null, criado_em: '2026-11-02T12:00:00Z' }];
-    const outubro = exportarInadimplentes(visoes.slice(0, 1), [], () => 'Membro Teste', '2026-10-15');
-    const r1 = await preencherXlsx(modelo('abordagem'), outubro.abas);
-    const novembro = exportarInadimplentes(visoes, contatos, () => 'Membro Teste', '2026-11-06');
-    const r2 = await preencherXlsx(r1.bytes, novembro.abas);
+  it('escreve a aba Inadimplentes: atrasados primeiro, regularizados no fim', async () => {
+    const visoes = [visao('D1', 'Pessoa Inventada Um', 'atraso_1'), visao('D2', 'Pessoa Inventada Dois', 'atraso_2'), visao('D3', 'Pessoa Em Dia', 'em_dia'), visao('D4', 'Nunca Atrasou', 'em_dia')];
+    const contatos = [
+      { doador_id: 'D2', membro: 'membro@casd.test', canal: 'whatsapp', motivo: 'cobranca', resultado: 'Vai atualizar o cartão', nota: null, criado_em: '2026-11-02T12:00:00Z' },
+      { doador_id: 'D3', membro: 'membro@casd.test', canal: 'whatsapp', motivo: 'cobranca', resultado: 'Pagou', nota: null, criado_em: '2026-10-20T12:00:00Z' },
+    ];
+    const exp = exportarInadimplentes(visoes, contatos, () => 'Membro Teste', '2026-11-06');
+    const linhas = exp.abas[0].itens as { regularizado: boolean }[];
+    expect(linhas).toHaveLength(3);
+    const col = (t: string) => exp.abas[0].colunas.find((c) => c.titulo === t)!;
+    expect(col('Tempo de inadimplência').valor(linhas[0])).toBe('2 meses');
+    expect(col('Valor em aberto').valor(linhas[0])).toBe(100);
+    expect(col('Mês').valor(linhas[0])).toBe('Setembro/2026');
+    expect(col('Tempo de inadimplência').valor(linhas[2])).toBe('Regularizado');
+    expect(col('Status da abordagem').valor(linhas[2])).toBe('Apoio confirmado');
 
-    const s = await aba(r2.bytes, 'Inadimplentes');
-    expect(s.celula('B3')).toContain('Outubro');
-    expect(s.celula('C3')).toContain('Pessoa Inventada Um');
-    expect(s.celula('B4')).toContain('Novembro');
-    expect(s.celula('C4')).toContain('Pessoa Inventada Dois'); // mais atrasado primeiro
-    expect(s.celula('C5')).toContain('Pessoa Inventada Um');
-    expect(s.xml).toContain('<mergeCell ref="B4:B5"/>');
-    expect(s.celula('I4')).toBe('<v>46328</v>'); // 1º contato em 02/11/2026
-    expect(s.celula('M4')).toContain('Vai atualizar o cartão');
-    expect(s.celula('O4')).toContain('Aguardando retorno do primeiro contato');
-    expect(s.xml).not.toContain('Em Dia');
-
-    // As outras abas do arquivo não mudam.
-    const antes = await aba(r1.bytes, 'Leads e Doações PF');
-    const depois = await aba(r2.bytes, 'Leads e Doações PF');
-    expect(depois.xml).toBe(antes.xml);
+    const r = await preencherXlsx(modelo('abordagem'), exp.abas);
+    const s = await aba(r.bytes, 'Inadimplentes');
+    expect(s.celula('C3')).toContain('Pessoa Inventada Dois');
+    expect(s.celula('C4')).toContain('Pessoa Inventada Um');
+    expect(s.celula('C5')).toContain('Pessoa Em Dia');
+    expect(s.celula('I3')).toBe('<v>46328</v>'); // 1º contato em 02/11/2026
+    expect(s.xml).not.toContain('Nunca Atrasou');
   });
 
   it('preenche a aba de parcerias PJ', async () => {

@@ -116,6 +116,7 @@ export function exportarEditais(editais: Edital[], projetos: Projeto[], inscrico
         colunas: COLUNAS_EDITAIS,
         itens: monitorados,
         ajustes: [{ celula: 'A1', texto: (t) => (/última atualização/i.test(t) ? `${t.replace(/(última atualização:).*$/i, '$1')} ${dataBr(hoje)}` : t) }],
+        ajustesDrive: [{ celula: 'A1', depoisDe: 'última atualização:', texto: dataBr(hoje) }],
       },
       { aba: 'Descartados', colunas: COLUNAS_DESCARTADOS, itens: descartados },
       { aba: 'Log semanal', colunas: COLUNAS_LOG, itens: [log], modo: 'acrescentar' },
@@ -157,7 +158,7 @@ export function exportarProjetos(projetos: Projeto[], editais: Edital[], inscric
 
 export interface ContatoDoador { doador_id: string; membro: string; canal: string; motivo: string; resultado: string | null; nota: string | null; criado_em: string }
 
-interface LinhaInadimplente { v: VisaoDoador; mes: string; contatos: ContatoDoador[]; responsavel: string | null }
+interface LinhaInadimplente { v: VisaoDoador; contatos: ContatoDoador[]; responsavel: string | null; regularizado: boolean }
 
 const STATUS_DA_CONVERSA: Record<string, string> = {
   lembrete_1: 'Contato iniciado',
@@ -178,10 +179,35 @@ const MENSAGEM_DA_FALHA: Record<string, string> = {
   verificar: 'Verificar o pagamento da doação',
 };
 
-const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
-  { titulo: 'Mês', valor: (l) => l.mes },
+const mesesTexto = (n: number) => (n === 1 ? '1 mês' : `${n} meses`);
+
+/**
+ * Colunas da aba "Inadimplentes". A primeira (nome) identifica a pessoa: as
+ * anotações que a equipe fizer em colunas extras da planilha acompanham o nome.
+ * As três colunas de inadimplência são criadas na planilha se não existirem.
+ */
+export const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
   { titulo: 'Nome da pessoa', outrosNomes: ['Nome', 'Doador'], largura: 28, valor: (l) => l.v.doador.nome },
+  {
+    titulo: 'Mês',
+    outrosNomes: ['Mês de entrada'],
+    // Mês em que a inadimplência começou.
+    valor: (l) => (l.v.atrasoDesde ? `${nomeDoMes(l.v.atrasoDesde)}/${l.v.atrasoDesde.slice(0, 4)}` : null),
+  },
   { titulo: 'Telefone / WhatsApp', outrosNomes: ['Telefone', 'Celular'], largura: 18, valor: (l) => l.v.doador.celular },
+  {
+    titulo: 'Tempo de inadimplência',
+    depoisDe: 'Telefone / WhatsApp',
+    largura: 18,
+    valor: (l) => (l.regularizado ? 'Regularizado' : l.v.mesesAtraso ? mesesTexto(l.v.mesesAtraso) : null),
+  },
+  { titulo: 'Inadimplente desde', depoisDe: 'Tempo de inadimplência', tipo: 'data', valor: (l) => (l.regularizado ? null : l.v.atrasoDesde) },
+  {
+    titulo: 'Valor em aberto',
+    depoisDe: 'Inadimplente desde',
+    tipo: 'moeda',
+    valor: (l) => (!l.regularizado && l.v.mesesAtraso && l.v.principal?.valor ? l.v.mesesAtraso * l.v.principal.valor : null),
+  },
   {
     titulo: 'Contexto prévio relevante',
     outrosNomes: ['Contexto'],
@@ -189,7 +215,6 @@ const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
     valor: (l) => {
       const p = l.v.principal;
       const partes = [
-        NOME_SITUACAO[l.v.situacao],
         p?.valor ? `R$ ${p.valor.toFixed(2).replace('.', ',')} ${(p.frequencia ?? '').toLowerCase()}`.trim() : null,
         p?.meio_pagamento ?? null,
         p?.criada_em ? `doador desde ${dataBr(p.criada_em)}` : null,
@@ -199,7 +224,12 @@ const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
     },
   },
   { titulo: 'Canal preferencial de contato', outrosNomes: ['Canal'], valor: (l) => CANAL_DO_DOADOR(l.v) },
-  { titulo: 'Mensagem-chave / proposta', outrosNomes: ['Mensagem-chave'], largura: 30, valor: (l) => (l.v.falha ? MENSAGEM_DA_FALHA[l.v.falha.motivo] : 'Verificar o pagamento da doação') },
+  {
+    titulo: 'Mensagem-chave / proposta',
+    outrosNomes: ['Mensagem-chave'],
+    largura: 30,
+    valor: (l) => (l.regularizado ? null : l.v.falha ? MENSAGEM_DA_FALHA[l.v.falha.motivo] : 'Verificar o pagamento da doação'),
+  },
   { titulo: 'Responsável pela abordagem', outrosNomes: ['Responsável'], valor: (l) => l.responsavel },
   ...[0, 1, 2, 3].map((i): Coluna<LinhaInadimplente> => ({
     titulo: `Data do ${i + 1}º contato`,
@@ -219,20 +249,28 @@ const COLUNAS_INADIMPLENTES: Coluna<LinhaInadimplente>[] = [
     titulo: 'Resumo da próxima ação prevista',
     outrosNomes: ['Próxima ação'],
     largura: 30,
-    valor: (l) => (l.v.rel?.proximo_contato ? `Novo contato em ${dataBr(l.v.rel.proximo_contato)}` : null),
+    valor: (l) => (!l.regularizado && l.v.rel?.proximo_contato ? `Novo contato em ${dataBr(l.v.rel.proximo_contato)}` : null),
   },
   {
     titulo: 'Status da abordagem',
     outrosNomes: ['Status'],
     largura: 24,
-    valor: (l) => (l.v.rel?.status_conversa ? STATUS_DA_CONVERSA[l.v.rel.status_conversa] : l.contatos.length ? 'Contato iniciado' : null),
+    valor: (l) =>
+      l.regularizado
+        ? 'Apoio confirmado'
+        : l.v.rel?.status_conversa
+          ? STATUS_DA_CONVERSA[l.v.rel.status_conversa]
+          : l.contatos.length
+            ? 'Contato iniciado'
+            : null,
   },
-  { titulo: 'Observações', largura: 40, valor: (l) => l.v.rel?.anotacoes ?? null },
+  { titulo: 'Observações', largura: 40, valor: (l) => (l.regularizado ? 'Regularizou o pagamento' : l.v.rel?.anotacoes ?? null) },
 ];
 
 /**
- * Doadores em atraso no bloco do mês atual da aba "Inadimplentes". Os meses
- * anteriores que já estiverem no arquivo do Drive ficam como estão.
+ * A aba "Inadimplentes" como retrato de agora: quem está em atraso (mais
+ * antigo primeiro) e, no fim, quem regularizou depois de uma cobrança nos
+ * últimos 60 dias.
  */
 export function exportarInadimplentes(
   visoes: VisaoDoador[],
@@ -240,31 +278,29 @@ export function exportarInadimplentes(
   nomeDoMembro: (email: string) => string,
   hoje: string,
 ): Exportacao {
-  const mes = nomeDoMes(hoje);
-  const itens: LinhaInadimplente[] = visoes
+  const cobrancasDe = (id: string, dias: number) =>
+    contatos
+      .filter((c) => c.doador_id === id && c.motivo === 'cobranca' && diasEntre(c.criado_em.slice(0, 10), hoje) <= dias)
+      .sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+  const linha = (v: VisaoDoador, regularizado: boolean): LinhaInadimplente => {
+    const meus = cobrancasDe(v.doador.id, regularizado ? 60 : 180).slice(-4);
+    const resp = v.rel?.responsavel ?? meus[0]?.membro ?? null;
+    return { v, contatos: meus, responsavel: resp ? nomeDoMembro(resp) : null, regularizado };
+  };
+  const nome = (v: VisaoDoador) => v.doador.nome ?? '';
+  const atrasados = visoes
     .filter((v) => v.situacao === 'atraso_1' || v.situacao === 'atraso_2' || v.situacao === 'atraso_3')
-    .sort((a, b) => (b.mesesAtraso ?? 0) - (a.mesesAtraso ?? 0) || (a.doador.nome ?? '').localeCompare(b.doador.nome ?? '', 'pt-BR'))
-    .map((v) => {
-      const meus = contatos
-        .filter((c) => c.doador_id === v.doador.id && c.motivo === 'cobranca' && diasEntre(c.criado_em.slice(0, 10), hoje) <= 120)
-        .sort((a, b) => a.criado_em.localeCompare(b.criado_em))
-        .slice(-4);
-      const resp = v.rel?.responsavel ?? meus[0]?.membro ?? null;
-      return { v, mes, contatos: meus, responsavel: resp ? nomeDoMembro(resp) : null };
-    });
+    .sort((a, b) => (b.mesesAtraso ?? 0) - (a.mesesAtraso ?? 0) || nome(a).localeCompare(nome(b), 'pt-BR'))
+    .map((v) => linha(v, false));
+  const regularizados = visoes
+    .filter((v) => v.situacao === 'em_dia' && cobrancasDe(v.doador.id, 60).length > 0)
+    .sort((a, b) => nome(a).localeCompare(nome(b), 'pt-BR'))
+    .map((v) => linha(v, true));
   return {
     setor: 'doadores',
     nome: 'Plano de abordagem',
     modelo: 'abordagem',
-    abas: [
-      {
-        aba: 'Inadimplentes',
-        colunas: COLUNAS_INADIMPLENTES,
-        itens,
-        agrupar: 'Mês',
-        manter: (linha) => (linha['Mês'] ?? '').trim().toLowerCase() !== mes.toLowerCase(),
-      },
-    ],
+    abas: [{ aba: 'Inadimplentes', colunas: COLUNAS_INADIMPLENTES, itens: [...atrasados, ...regularizados] }],
   };
 }
 

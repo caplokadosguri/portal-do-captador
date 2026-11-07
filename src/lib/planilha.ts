@@ -12,6 +12,8 @@ export interface Coluna<T> {
   /** Outros nomes que o cabeçalho do modelo pode usar para esta coluna. */
   outrosNomes?: string[];
   tipo?: 'texto' | 'data' | 'moeda' | 'numero';
+  /** Se a planilha do Drive não tiver esta coluna, ela é criada logo depois desta. */
+  depoisDe?: string;
   largura?: number;
   valor: (item: T) => Valor;
   /**
@@ -26,8 +28,8 @@ export interface Exportacao {
   setor: string;
   /** Nome que aparece no arquivo: "Editais", "Doadores"… */
   nome: string;
-  /** Arquivo em /public/modelos/ (sem .xlsx). Sem modelo, sai a planilha padrão. */
-  modelo?: string;
+  /** Modelo do CASD: arquivo em /public/modelos/ e planilha ligada no Drive. Sem modelo, sai a planilha padrão. */
+  modelo?: 'editais' | 'abordagem';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   abas: AbaModelo<any>[];
 }

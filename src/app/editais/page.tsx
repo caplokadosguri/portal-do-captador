@@ -1,10 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import BotaoImportar from '@/components/BotaoImportar';
-import BotaoPlanilha from '@/components/BotaoPlanilha';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaEdital from '@/components/FichaEdital';
+import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { formatarData, formatarReais } from '@/lib/contato';
@@ -13,7 +12,7 @@ import {
   montarFileirasEditais, NIVEIS, Projeto, rotuloDe, SITUACOES, textoDiasRestantes,
 } from '@/lib/editais';
 import { exportarEditais } from '@/lib/exportacoes';
-import { faltandoNoPortal, lerEditaisDoArquivo } from '@/lib/importarPlanilha';
+import { ABAS_LEITURA_EDITAIS, editaisDeLinhas, novosPorNome } from '@/lib/importarPlanilha';
 import { supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { hojeIso } from '@/lib/texto';
@@ -25,9 +24,16 @@ export default function Editais() {
   const [aberto, setAberto] = useState<string | 'novo' | null>(null);
   const [busca, setBusca] = useState('');
 
-  const recarregar = useCallback(() => {
-    carregarEditais().then((d) => setDados({ ...d, hoje: hojeIso() })).catch((e: Error) => setErro(e.message));
-  }, []);
+  const [versao, setVersao] = useState(0);
+  const recarregar = useCallback(
+    () => carregarEditais().then((d) => setDados({ ...d, hoje: hojeIso() })).catch((e: Error) => setErro(e.message)),
+    [],
+  );
+  /** Depois de salvar: recarrega e avisa a planilha do Drive. */
+  const salvou = useCallback(async () => {
+    await recarregar();
+    setVersao((v) => v + 1);
+  }, [recarregar]);
 
   useEffect(() => {
     if (podeVer(membro, 'editais')) recarregar();
@@ -106,37 +112,34 @@ export default function Editais() {
       <div className="miolo">
         <Ferramentas>
           {podeEditar && <button type="button" className="botao destaque-cor" onClick={() => setAberto('novo')}>+ Lançar edital</button>}
-          <BotaoPlanilha
-            opcoes={[
-              {
-                rotulo: 'Gerar planilha',
-                temModelo: true,
-                preparar: () => exportarEditais(dados?.editais ?? [], dados?.projetos ?? [], dados?.inscricoes ?? [], hojeIso()),
-                verificar: async (arquivo) => {
-                  const lidos = await lerEditaisDoArquivo(arquivo);
-                  if (!lidos) return 'Este arquivo não parece ser a planilha de monitoramento de editais.';
-                  const faltam = faltandoNoPortal(lidos.map((e) => e.nome), (dados?.editais ?? []).map((e) => e.nome));
-                  return faltam.length
-                    ? `O arquivo tem ${faltam.length} edital(is) que não estão no portal (ex.: ${faltam.slice(0, 2).join('; ')}). Use “Importar do Drive” antes, para não perdê-los.`
-                    : null;
-                },
-              },
-            ]}
+          <StatusDrive
+            planilha="editais"
+            pronto={!!dados}
+            versao={versao}
+            ehAdmin={ehAdmin}
+            preparar={() => exportarEditais(dados?.editais ?? [], dados?.projetos ?? [], dados?.inscricoes ?? [], hojeIso())}
+            importar={
+              podeEditar
+                ? {
+                    abas: ABAS_LEITURA_EDITAIS,
+                    faltando: (lidas) => {
+                      const lidos = editaisDeLinhas(lidas['Controle de Editais'] ?? [], lidas['Descartados'] ?? []);
+                      const novos = novosPorNome(lidos, (e) => e.nome, (dados?.editais ?? []).map((e) => e.nome));
+                      return {
+                        nomes: novos.map((e) => e.nome),
+                        gravar: async () => {
+                          for (let i = 0; i < novos.length; i += 200) {
+                            const { error } = await supabase().from('editais').insert(novos.slice(i, i + 200));
+                            if (error) throw new Error(error.message);
+                          }
+                          await salvou();
+                        },
+                      };
+                    },
+                  }
+                : undefined
+            }
           />
-          {podeEditar && dados && (
-            <BotaoImportar
-              ler={lerEditaisDoArquivo}
-              nomeDe={(e) => e.nome}
-              existentes={dados.editais.map((e) => e.nome)}
-              gravar={async (novos) => {
-                for (let i = 0; i < novos.length; i += 200) {
-                  const { error } = await supabase().from('editais').insert(novos.slice(i, i + 200));
-                  if (error) throw new Error(error.message);
-                }
-              }}
-              aoTerminar={recarregar}
-            />
-          )}
           <label className="campo">
             <span className="sr">Buscar edital</span>
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, organizador ou fonte" />
@@ -175,7 +178,7 @@ export default function Editais() {
           podeEditar={podeEditar}
           podeApagar={ehAdmin}
           aoFechar={() => setAberto(null)}
-          aoSalvar={recarregar}
+          aoSalvar={salvou}
         />
       )}
     </Tela>

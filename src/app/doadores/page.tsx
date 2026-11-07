@@ -1,14 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import BotaoPlanilha from '@/components/BotaoPlanilha';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaDoador from '@/components/FichaDoador';
+import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais } from '@/lib/contato';
 import { ContatoDoador, exportarCarteira, exportarInadimplentes } from '@/lib/exportacoes';
+import { gerarPlanilha } from '@/lib/planilha';
 import { buscarTudo, supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { NOME_SITUACAO, Situacao } from '@/lib/situacao';
@@ -56,9 +57,12 @@ export default function Doadores() {
   const [aberto, setAberto] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
 
-  const recarregar = useCallback(() => {
-    carregarCarteira().then(setCarteira).catch((e: Error) => setErro(e.message));
-  }, []);
+  const [versao, setVersao] = useState(0);
+  const recarregar = useCallback(() => carregarCarteira().then(setCarteira).catch((e: Error) => setErro(e.message)), []);
+  const salvou = useCallback(async () => {
+    await recarregar();
+    setVersao((v) => v + 1);
+  }, [recarregar]);
 
   useEffect(() => {
     if (podeVer(membro, 'doadores')) recarregar();
@@ -133,12 +137,16 @@ export default function Doadores() {
 
       <div className="miolo">
         <Ferramentas>
-          <BotaoPlanilha
-            opcoes={[
-              { rotulo: 'Planilha de abordagem (inadimplentes)', temModelo: true, preparar: () => prepararInadimplentes(carteira) },
-              { rotulo: 'Carteira completa', preparar: () => exportarCarteira(carteira?.visoes ?? []) },
-            ]}
+          <StatusDrive
+            planilha="abordagem"
+            pronto={!!carteira}
+            versao={versao}
+            ehAdmin={membro.papel === 'admin'}
+            preparar={() => prepararInadimplentes(carteira)}
           />
+          <button type="button" className="link-botao" style={{ alignSelf: 'center' }} onClick={() => gerarPlanilha(exportarCarteira(carteira?.visoes ?? []))}>
+            Baixar carteira completa (.xlsx)
+          </button>
           <label className="campo">
             <span className="sr">Buscar doador</span>
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome ou e-mail" />
@@ -175,7 +183,7 @@ export default function Doadores() {
           visao={visaoAberta}
           modelos={carteira.modelos}
           aoFechar={() => setAberto(null)}
-          aoSalvar={recarregar}
+          aoSalvar={salvou}
         />
       )}
     </Tela>

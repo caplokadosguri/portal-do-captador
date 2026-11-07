@@ -50,7 +50,7 @@ export default function Admin() {
         titulo={`Olá, ${membro.nome.split(' ')[0]}`}
         cor="#3192B3"
         meta={numeros ? [`${numeros.membros} membros ativos`, `${numeros.doadores} doadores`, `${numeros.editais} editais abertos`, `${numeros.projetos} projetos`] : []}
-        descricao="Você vê todas as áreas. Cada setor tem o botão “Gerar planilha” para atualizar a gestão de dados no Drive."
+        descricao="Você vê todas as áreas. As planilhas do CASD no Drive se atualizam sozinhas quando alguém salva algo no portal."
         acoes={
           <>
             <button type="button" className="botao" onClick={() => router.push('/admin/importar')}>▶ Importar relatórios da Trackmob</button>
@@ -66,6 +66,7 @@ export default function Admin() {
         </Fileira>
         <Fileira titulo="Ferramentas da diretoria" cor="#3192B3">
           <Card titulo="Importar relatórios" linha="Doadores, doações e cobranças (CSV)" grande="Trackmob" cor="#2A9D8F" aoAbrir={() => router.push('/admin/importar')} />
+          <Card titulo="Planilhas no Drive" linha="Ligar as planilhas do CASD ao portal" grande="Drive" cor="#3FA66B" aoAbrir={() => router.push('/admin/drive')} />
           <Card titulo="Membros e perfis" linha="Quem acessa o quê" grande={numeros ? `${numeros.membros} ativos` : undefined} cor="#8E6CD1" aoAbrir={() => router.push('/admin/membros')} />
         </Fileira>
 

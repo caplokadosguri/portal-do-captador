@@ -28,11 +28,25 @@ function valor(v: unknown): number | null {
 
 export type EditalNovo = Omit<Edital, 'id' | 'criado_em' | 'atualizado_em'>;
 
+type Linha = Record<string, unknown>;
+
+/** Abas e colunas que a leitura de editais usa (arquivo ou Drive). */
+export const ABAS_LEITURA_EDITAIS = [
+  { aba: 'Controle de Editais', colunas: COLUNAS_EDITAIS },
+  { aba: 'Descartados', colunas: COLUNAS_DESCARTADOS },
+];
+export const ABAS_LEITURA_PARCERIAS = [{ aba: 'Parcerias e Doações PJ', colunas: COLUNAS_PARCERIAS }];
+
 /** Editais das abas "Controle de Editais" e "Descartados". `null` se o arquivo não for o modelo. */
 export async function lerEditaisDoArquivo(arquivo: ArrayBuffer): Promise<EditalNovo[] | null> {
   const controle = await lerAba(arquivo, 'Controle de Editais', COLUNAS_EDITAIS);
   if (!controle) return null;
   const descartados = (await lerAba(arquivo, 'Descartados', COLUNAS_DESCARTADOS)) ?? [];
+  return editaisDeLinhas(controle, descartados);
+}
+
+/** Converte as linhas lidas (pelo título das colunas) em editais. */
+export function editaisDeLinhas(controle: Linha[], descartados: Linha[]): EditalNovo[] {
   const saida: EditalNovo[] = [];
   for (const l of controle) {
     const nome = txt(l['Nome do edital']);
@@ -85,7 +99,10 @@ export type ParceriaNova = Omit<Parceria, 'id' | 'criado_em' | 'atualizado_em'>;
 /** Parcerias da aba "Parcerias e Doações PJ". `null` se o arquivo não for o modelo. */
 export async function lerParceriasDoArquivo(arquivo: ArrayBuffer): Promise<ParceriaNova[] | null> {
   const linhas = await lerAba(arquivo, 'Parcerias e Doações PJ', COLUNAS_PARCERIAS);
-  if (!linhas) return null;
+  return linhas ? parceriasDeLinhas(linhas) : null;
+}
+
+export function parceriasDeLinhas(linhas: Linha[]): ParceriaNova[] {
   const saida: ParceriaNova[] = [];
   for (const l of linhas) {
     const organizacao = txt(l['Organização']);
@@ -119,4 +136,16 @@ export async function lerParceriasDoArquivo(arquivo: ArrayBuffer): Promise<Parce
 export function faltandoNoPortal(doArquivo: string[], doPortal: string[]): string[] {
   const portal = new Set(doPortal.map(chaveNome));
   return [...new Set(doArquivo.filter((n) => !portal.has(chaveNome(n))))];
+}
+
+/** Itens cujo nome ainda não existe no portal (sem repetir). */
+export function novosPorNome<T>(itens: T[], nomeDe: (i: T) => string, existentes: string[]): T[] {
+  const ja = new Set(existentes.map(chaveNome));
+  const vistos = new Set<string>();
+  return itens.filter((i) => {
+    const k = chaveNome(nomeDe(i));
+    if (!k || ja.has(k) || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
 }

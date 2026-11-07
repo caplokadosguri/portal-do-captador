@@ -7,7 +7,7 @@ nunca coloque aqui uma planilha com dados.
 | Arquivo | Abas que o portal preenche | Setor |
 | --- | --- | --- |
 | `editais.xlsx` (Monitoramento de Editais) | Controle de Editais, Descartados, Log semanal (acrescenta uma linha) | Editais |
-| `abordagem.xlsx` (Plano de abordagem) | Inadimplentes (bloco do mês atual) | Doadores |
+| `abordagem.xlsx` (Plano de abordagem) | Inadimplentes (quem está em atraso agora + regularizados nos últimos 60 dias) | Doadores |
 | `abordagem.xlsx` (Plano de abordagem) | Parcerias e Doações PJ | Parceiros |
 
 A aba "Resumo" e a "Leads e Doações PF" não são mexidas.
@@ -18,12 +18,9 @@ condicional, listas suspensas, tabelas, logo e as fórmulas do modelo
 ("Dias restantes", "Ordem") continuam iguais. As colunas são achadas pelo nome
 do cabeçalho, então reordenar colunas no modelo não quebra nada.
 
-"Atualizar arquivo do Drive": baixe a planilha do Drive como .xlsx, escolha no
-portal e ele devolve o mesmo arquivo com as abas dele atualizadas e o resto
-intacto. No Google Planilhas: Arquivo › Importar › Fazer upload ›
-"Substituir planilha" (mantém o mesmo link). Antes de atualizar, o portal
-confere se o arquivo tem editais ou empresas que ainda não estão nele; se tiver,
-pede para usar "Importar do Drive" primeiro.
+O caminho principal é o Drive: o portal escreve direto nas planilhas ligadas em
+Início › Planilhas no Drive (ponte em `src/lib/drive/codigoAppsScript.ts`, com
+as mesmas regras). Estes arquivos servem para o "Baixar cópia (.xlsx)".
 
 Para trocar um modelo: gere a versão limpa (sem dados) e substitua o arquivo
 aqui, com o mesmo nome.

@@ -324,3 +324,27 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .grade-3, .grade-2 { align-items: end; }
 .grade-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }
 @media (max-width: 700px) { .grade-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Indicador da planilha no Drive */
+.status-drive {
+  display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: 8px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--linha); max-width: 620px; font-size: 14px;
+}
+.status-drive-icone {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; background: #24404c; color: #fff;
+}
+.status-drive.ok .status-drive-icone { background: #2e7d4f; }
+.status-drive.erro .status-drive-icone { background: #b3412f; }
+.status-drive.importar { border-color: #8a6a1f; background: #2a2414; }
+.status-drive.importar .status-drive-icone { background: #c9a227; color: #12303d; }
+.status-drive-texto { display: flex; flex-direction: column; gap: 4px; color: var(--tinta); }
+.status-drive-texto span.pequeno { color: var(--tinta-suave); }
+.status-drive .acoes { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.link-botao { background: none; border: 0; padding: 0; color: var(--azul); cursor: pointer; font: inherit; text-decoration: underline; }
+.link-botao:disabled { opacity: .6; cursor: default; }
+.link-botao.perigo { color: #ff9d8f; }
+.girando { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: girar .8s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.passos { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+.codigo { max-height: 320px; overflow: auto; background: #071015; border: 1px solid var(--linha); border-radius: 8px; padding: 12px; font-size: 12px; line-height: 1.45; white-space: pre; margin: 0; }

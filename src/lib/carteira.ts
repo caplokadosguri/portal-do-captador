@@ -5,7 +5,7 @@
 import { buscarTudo, supabase } from './supabase/cliente';
 import { MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
 import {
-  brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, motivoFalha, MotivoFalha,
+  brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, inicioDoAtraso, motivoFalha, MotivoFalha,
   mesesEmAtraso, PontoDoPlano, pontoDoPlano, Situacao, situacao,
 } from './situacao';
 import { diasEntre, hojeIso, somarMeses } from './texto';
@@ -42,6 +42,8 @@ export interface VisaoDoador {
   cobrancas: Cobranca[];
   situacao: Situacao;
   mesesAtraso: number | null;
+  /** Vencimento da primeira cobrança não paga da sequência atual. */
+  atrasoDesde: string | null;
   falha: { motivo: MotivoFalha; mensagem: string | null } | null;
   plano: PontoDoPlano | null;
   brindeDevido: { chave: string; nome: string } | null;
@@ -98,6 +100,7 @@ export async function carregarCarteira(): Promise<Carteira> {
       cobrancas: cc,
       situacao: sit,
       mesesAtraso: principal && recorrenteAtiva ? mesesEmAtraso(principal, cc, hoje) : null,
+      atrasoDesde: principal && sit.startsWith('atraso') ? inicioDoAtraso(principal, cc, hoje) : null,
       falha: principal && sit.startsWith('atraso') ? motivoFalha(cc, principal.id) : null,
       plano,
       brindeDevido: devido ? { chave: devido.chave, nome: devido.nome } : null,
