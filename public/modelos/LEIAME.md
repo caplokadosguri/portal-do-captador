@@ -9,6 +9,12 @@ nunca coloque aqui uma planilha com dados.
 | `editais.xlsx` (Monitoramento de Editais) | Controle de Editais, Descartados, Log semanal (acrescenta uma linha) | Editais |
 | `abordagem.xlsx` (Plano de abordagem) | Inadimplentes (quem está em atraso agora + regularizados nos últimos 60 dias) | Doadores |
 | `abordagem.xlsx` (Plano de abordagem) | Parcerias e Doações PJ | Parceiros |
+| `projetos.xlsx` (Banco de Projetos) | Projetos (a aba Resumo calcula sozinha) | Projetos |
+
+`projetos.xlsx` foi criado pelo portal com a identidade dos outros modelos
+(`scripts/gerar_modelo_projetos.py`). Para usar no Drive: suba o arquivo, abra
+e use Arquivo › Salvar como Planilhas Google; o link da versão Google vai em
+Início › Planilhas no Drive.
 
 A aba "Resumo" e a "Leads e Doações PF" não são mexidas.
 

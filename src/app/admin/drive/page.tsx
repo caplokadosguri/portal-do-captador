@@ -8,15 +8,16 @@ import { codigoAppsScript } from '@/lib/drive/codigoAppsScript';
 import { useMembro } from '@/lib/membro';
 import { supabase } from '@/lib/supabase/cliente';
 
-const PLANILHAS: { chave: PlanilhaDrive; nome: string; usa: string }[] = [
+const PLANILHAS: { chave: PlanilhaDrive; nome: string; usa: string; modelo?: string }[] = [
   { chave: 'editais', nome: 'Monitoramento de Editais', usa: 'Editais: abas Controle de Editais, Descartados e Log semanal' },
   { chave: 'abordagem', nome: 'Plano de abordagem', usa: 'Doadores (aba Inadimplentes) e Parceiros (aba Parcerias e Doações PJ)' },
+  { chave: 'projetos', nome: 'Banco de Projetos', usa: 'Projetos: abas Projetos e Resumo', modelo: '/modelos/projetos.xlsx' },
 ];
 
 export default function DriveAdmin() {
   const { carregando, membro, email } = useMembro();
   const [url, setUrl] = useState('');
-  const [links, setLinks] = useState<Record<PlanilhaDrive, string>>({ editais: '', abordagem: '' });
+  const [links, setLinks] = useState<Record<PlanilhaDrive, string>>({ editais: '', abordagem: '', projetos: '' });
   const [msg, setMsg] = useState<{ texto: string; erro?: boolean } | null>(null);
   const [testes, setTestes] = useState<Record<string, string>>({});
   const [verCodigo, setVerCodigo] = useState(false);
@@ -29,7 +30,7 @@ export default function DriveAdmin() {
     if (membro?.papel !== 'admin') return;
     lerConfigDrive().then((c) => {
       setUrl(c.url ?? '');
-      setLinks({ editais: c.planilhas.editais ?? '', abordagem: c.planilhas.abordagem ?? '' });
+      setLinks({ editais: c.planilhas.editais ?? '', abordagem: c.planilhas.abordagem ?? '', projetos: c.planilhas.projetos ?? '' });
     });
   }, [membro]);
 
@@ -42,6 +43,7 @@ export default function DriveAdmin() {
       { chave: CHAVES_DRIVE.url, valor: url.trim() || null },
       { chave: CHAVES_DRIVE.editais, valor: links.editais.trim() || null },
       { chave: CHAVES_DRIVE.abordagem, valor: links.abordagem.trim() || null },
+      { chave: CHAVES_DRIVE.projetos, valor: links.projetos.trim() || null },
     ];
     const { error } = await supabase().from('configuracoes').upsert(linhas);
     if (error) return setMsg({ texto: `Não salvou: ${error.message}`, erro: true });
@@ -85,6 +87,10 @@ export default function DriveAdmin() {
             <li>Clique em Implantar e autorize o acesso às planilhas. Copie o <strong>URL do app da Web</strong> e cole no passo 2.</li>
           </ol>
           <p className="suave pequeno" style={{ margin: 0 }}>
+            Já criou a ponte antes? Quando o portal avisar que ela está desatualizada, cole o código novo, salve e vá em
+            Implantar › Gerenciar implantações › editar (lápis) › Versão: <strong>Nova versão</strong> › Implantar. O link continua o mesmo.
+          </p>
+          <p className="suave pequeno" style={{ margin: 0 }}>
             “Qualquer pessoa” só deixa o endereço acessível: a ponte confere o login do portal em cada pedido e só aceita membros
             com o perfil certo. Ela não guarda senha nem chave secreta.
           </p>
@@ -117,7 +123,15 @@ export default function DriveAdmin() {
                 onChange={(e) => setLinks((l) => ({ ...l, [p.chave]: e.target.value }))}
                 placeholder="https://docs.google.com/spreadsheets/d/…"
               />
-              <span className="suave pequeno" style={{ fontWeight: 400 }}>Usada por {p.usa}.</span>
+              <span className="suave pequeno" style={{ fontWeight: 400 }}>
+                Usada por {p.usa}.
+                {p.modelo && (
+                  <>
+                    {' '}Planilha nova: <a href={p.modelo} download>baixe o modelo</a>, suba no Drive, abra e use{' '}
+                    <strong>Arquivo › Salvar como Planilhas Google</strong>; cole aqui o link da versão Google.
+                  </>
+                )}
+              </span>
               {testes[p.chave] && <span className={`pequeno ${testes[p.chave].startsWith('✗') ? 'texto-erro' : ''}`} style={{ fontWeight: 400 }}>{testes[p.chave]}</span>}
             </label>
           ))}
@@ -131,6 +145,7 @@ export default function DriveAdmin() {
         <section className="cartao pilha">
           <h2 style={{ fontSize: 18 }}>Como funciona</h2>
           <ul className="passos">
+            <li>As planilhas precisam estar no formato do Google Planilhas (não .xlsx guardado no Drive).</li>
             <li>O portal escreve só nas colunas dele. Fórmulas (como Dias restantes), cores, listas suspensas e a aba Resumo continuam iguais.</li>
             <li>Colunas que a equipe criar na planilha acompanham o item pelo nome (ex.: uma coluna de anotações nos editais).</li>
             <li>Se a planilha tiver editais ou empresas que ainda não estão no portal, o portal pede para trazê-los antes de atualizar.</li>

@@ -1,9 +1,9 @@
 // Roda o código da ponte do Drive contra uma planilha de mentira (dados inventados).
 import { describe, expect, it } from 'vitest';
 import { deslocarFormula, letraParaNumero, numeroParaLetra } from '../xlsxModelo';
-import { exportarEditais, exportarParcerias } from '../exportacoes';
+import { exportarEditais, exportarParcerias, exportarProjetos } from '../exportacoes';
 import type { Edital } from '../editais';
-import { codigoAppsScript } from './codigoAppsScript';
+import { codigoAppsScript, VERSAO_PONTE } from './codigoAppsScript';
 import { pedidoDeEscrita } from './cliente';
 
 type Celula = { v: unknown; f: string };
@@ -80,7 +80,7 @@ function planilhaFalsa(abas: Aba[]) {
   };
 }
 
-function ponte(ss: ReturnType<typeof planilhaFalsa>, papel = 'admin', config: Record<string, string> = { drive_planilha_editais: 'https://docs.google.com/spreadsheets/d/PLANILHA_TESTE_1234567890/edit', drive_planilha_abordagem: 'PLANILHA_TESTE_1234567890' }) {
+function ponte(ss: ReturnType<typeof planilhaFalsa>, papel = 'admin', config: Record<string, string> = { drive_planilha_editais: 'https://docs.google.com/spreadsheets/d/PLANILHA_TESTE_1234567890/edit', drive_planilha_abordagem: 'PLANILHA_TESTE_1234567890', drive_planilha_projetos: 'PLANILHA_TESTE_1234567890' }) {
   const props = new Map<string, string>();
   const globais = {
     SpreadsheetApp: { openById: () => ss, flush: () => undefined, CopyPasteType: { PASTE_FORMAT: 'PASTE_FORMAT', PASTE_DATA_VALIDATION: 'PASTE_DATA_VALIDATION', PASTE_FORMULA: 'PASTE_FORMULA' } },
@@ -170,6 +170,23 @@ describe('ponte com o Drive (Apps Script)', () => {
     expect(pj.cel(2, 5).v).toBe('Cargo'); // colunas novas entram no fim
     const lido = chamar({ acao: 'ler', planilha: 'abordagem', abas: [{ aba: 'Parcerias e Doações PJ', colunas: pedidoDeEscrita(exp)[0].colunas }] });
     expect(lido.abas[0].linhas[0]).toMatchObject({ 'Organização': 'Empresa Inventada', 'Status da abordagem': 'Reunião marcada', 'Data do 1º contato': '2026-11-03' });
+  });
+
+  it('escreve projetos na aba do modelo novo, com a versão da ponte', () => {
+    const aba = new Aba('Projetos', 3);
+    aba.cel(1, 4).v = 'Banco de Projetos CASD  |  última atualização: ';
+    ['', 'Título', 'Esfera', 'Status', 'Escopo', 'Quem pediu', 'Público atendido', 'Orçamento', 'Editais vinculados', 'Link dos documentos', 'Observações da equipe']
+      .forEach((t, i) => { aba.cel(2, i + 1).v = t; });
+    const ss = planilhaFalsa([aba]);
+    const exp = exportarProjetos([{ id: 'p', titulo: 'Projeto Inventado', escopo: null, quem_pediu: null, esfera: 'Ambos', publico_atendido: 50, orcamento: 1000, status: 'pronto', link_documentos: null }], [], [], '2026-11-07');
+    const r = ponte(ss, 'editais')({ acao: 'escrever', planilha: 'projetos', abas: pedidoDeEscrita(exp) });
+    expect(r.ok).toBe(true);
+    expect(r.versao).toBe(VERSAO_PONTE);
+    expect(aba.cel(3, 2).v).toBe('Projeto Inventado');
+    expect(aba.cel(3, 3).v).toBe('CASDvest e Casdinho');
+    expect(aba.cel(3, 4).v).toBe('Pronto para inscrever');
+    expect(String(aba.cel(1, 4).v)).toContain('última atualização: 07/11/2026');
+    expect(ponte(ss, 'doadores')({ acao: 'ler', planilha: 'projetos', abas: [] }).erro).toContain('perfil');
   });
 
   it('recusa quem não tem o perfil e planilha não ligada', () => {

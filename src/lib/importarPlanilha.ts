@@ -1,8 +1,8 @@
 // Traz para o portal o que já está na planilha do Drive (editais e parcerias),
 // para que o portal vire a fonte e o botão "Gerar planilha" não apague nada.
 
-import { ABRANGENCIAS, ADERENCIAS, Edital, NIVEIS, SITUACOES } from './editais';
-import { COLUNAS_DESCARTADOS, COLUNAS_EDITAIS, COLUNAS_PARCERIAS } from './exportacoes';
+import { ABRANGENCIAS, ADERENCIAS, Edital, ESFERAS, NIVEIS, Projeto, SITUACOES, STATUS_PROJETO } from './editais';
+import { COLUNAS_DESCARTADOS, COLUNAS_EDITAIS, COLUNAS_PARCERIAS, COLUNAS_PROJETOS } from './exportacoes';
 import { Parceria, STATUS_ABORDAGEM } from './parceiros';
 import { chaveDeCabecalho } from './planilha';
 import { lerAba } from './xlsxModelo';
@@ -36,6 +36,30 @@ export const ABAS_LEITURA_EDITAIS = [
   { aba: 'Descartados', colunas: COLUNAS_DESCARTADOS },
 ];
 export const ABAS_LEITURA_PARCERIAS = [{ aba: 'Parcerias e Doações PJ', colunas: COLUNAS_PARCERIAS }];
+export const ABAS_LEITURA_PROJETOS = [{ aba: 'Projetos', colunas: COLUNAS_PROJETOS }];
+
+export type ProjetoNovo = Omit<Projeto, 'id'>;
+
+/** Projetos da aba "Projetos" do Banco de Projetos. */
+export function projetosDeLinhas(linhas: Linha[]): ProjetoNovo[] {
+  const saida: ProjetoNovo[] = [];
+  for (const l of linhas) {
+    const titulo = txt(l['Título']);
+    if (!titulo) continue;
+    const publico = valor(l['Público atendido']);
+    saida.push({
+      titulo,
+      escopo: txt(l['Escopo']),
+      quem_pediu: txt(l['Quem pediu']),
+      esfera: deRotulo(ESFERAS, l['Esfera']),
+      publico_atendido: publico === null ? null : Math.round(publico),
+      orcamento: valor(l['Orçamento']),
+      status: deRotulo(STATUS_PROJETO, l['Status']) ?? 'ideia',
+      link_documentos: txt(l['Link dos documentos']),
+    });
+  }
+  return saida;
+}
 
 /** Editais das abas "Controle de Editais" e "Descartados". `null` se o arquivo não for o modelo. */
 export async function lerEditaisDoArquivo(arquivo: ArrayBuffer): Promise<EditalNovo[] | null> {

@@ -140,16 +140,33 @@ export const COLUNAS_PROJETOS: Coluna<Projeto & { editais?: string }>[] = [
   { titulo: 'Editais vinculados', outrosNomes: ['Editais', 'Edital'], largura: 34, valor: (p) => p.editais ?? null },
 ];
 
-export function exportarProjetos(projetos: Projeto[], editais: Edital[], inscricoes: Inscricao[]): Exportacao {
-  const itens = projetos.map((p) => ({
-    ...p,
-    editais: inscricoes
-      .filter((i) => i.projeto_id === p.id)
-      .map((i) => editais.find((e) => e.id === i.edital_id)?.nome)
-      .filter(Boolean)
-      .join('; '),
-  }));
-  return { setor: 'projetos', nome: 'Projetos', abas: [{ aba: 'Projetos', colunas: COLUNAS_PROJETOS, itens }] };
+export function exportarProjetos(projetos: Projeto[], editais: Edital[], inscricoes: Inscricao[], hoje?: string): Exportacao {
+  const nome = (a: Projeto, b: Projeto) => a.titulo.localeCompare(b.titulo, 'pt-BR');
+  const ordem = STATUS_PROJETO.map((s) => s.valor);
+  const itens = [...projetos]
+    .sort((a, b) => ordem.indexOf(a.status) - ordem.indexOf(b.status) || nome(a, b))
+    .map((p) => ({
+      ...p,
+      editais: inscricoes
+        .filter((i) => i.projeto_id === p.id)
+        .map((i) => editais.find((e) => e.id === i.edital_id)?.nome)
+        .filter(Boolean)
+        .join('; '),
+    }));
+  return {
+    setor: 'projetos',
+    nome: 'Banco de Projetos',
+    modelo: 'projetos',
+    abas: [
+      {
+        aba: 'Projetos',
+        colunas: COLUNAS_PROJETOS,
+        itens,
+        ajustes: hoje ? [{ celula: 'D1', texto: (t) => (/última atualização/i.test(t) ? `${t.replace(/(última atualização:).*$/i, '$1')} ${dataBr(hoje)}` : t) }] : [],
+        ajustesDrive: hoje ? [{ celula: 'D1', depoisDe: 'última atualização:', texto: dataBr(hoje) }] : [],
+      },
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------

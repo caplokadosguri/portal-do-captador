@@ -105,7 +105,6 @@ export default function Editais() {
           rotulo="Editais"
           titulo={dados ? 'Nenhum edital aberto' : 'Carregando editais…'}
           descricao={dados ? 'Lance os editais filtrados da planilha da consultoria e eles aparecem aqui, organizados por prazo e prioridade.' : undefined}
-          acoes={podeEditar && dados ? <button type="button" className="botao" onClick={() => setAberto('novo')}>+ Lançar edital</button> : undefined}
         />
       )}
 

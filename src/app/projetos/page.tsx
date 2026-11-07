@@ -1,15 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import BotaoPlanilha from '@/components/BotaoPlanilha';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaProjeto from '@/components/FichaProjeto';
+import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { formatarReais } from '@/lib/contato';
 import { carregarEditais, Edital, ESFERAS, Inscricao, montarFileirasProjetos, Projeto, rotuloDe, STATUS_PROJETO } from '@/lib/editais';
 import { exportarProjetos } from '@/lib/exportacoes';
+import { ABAS_LEITURA_PROJETOS, novosPorNome, projetosDeLinhas } from '@/lib/importarPlanilha';
 import { podeVer, useMembro } from '@/lib/membro';
+import { supabase } from '@/lib/supabase/cliente';
+import { hojeIso } from '@/lib/texto';
 
 export default function Projetos() {
   const { carregando, membro, email } = useMembro();
@@ -17,9 +20,12 @@ export default function Projetos() {
   const [erro, setErro] = useState('');
   const [aberto, setAberto] = useState<string | 'novo' | null>(null);
 
-  const recarregar = useCallback(() => {
-    carregarEditais().then(setDados).catch((e: Error) => setErro(e.message));
-  }, []);
+  const [versao, setVersao] = useState(0);
+  const recarregar = useCallback(() => carregarEditais().then(setDados).catch((e: Error) => setErro(e.message)), []);
+  const salvou = useCallback(async () => {
+    await recarregar();
+    setVersao((v) => v + 1);
+  }, [recarregar]);
   useEffect(() => {
     if (podeVer(membro, 'editais')) recarregar();
   }, [membro, recarregar]);
@@ -70,14 +76,31 @@ export default function Projetos() {
           rotulo="Projetos"
           titulo={dados ? 'Banco de projetos' : 'Carregando projetos…'}
           descricao={dados ? 'Os projetos do CASDvest e do Casdinho que podem concorrer a editais. Cadastre o primeiro.' : undefined}
-          acoes={dados ? <button type="button" className="botao" onClick={() => setAberto('novo')}>+ Novo projeto</button> : undefined}
         />
       )}
       <div className="miolo">
         <Ferramentas>
           <button type="button" className="botao destaque-cor" onClick={() => setAberto('novo')}>+ Novo projeto</button>
-          <BotaoPlanilha
-            opcoes={[{ rotulo: 'Gerar planilha', preparar: () => exportarProjetos(dados?.projetos ?? [], dados?.editais ?? [], dados?.inscricoes ?? []) }]}
+          <StatusDrive
+            planilha="projetos"
+            pronto={!!dados}
+            versao={versao}
+            ehAdmin={membro.papel === 'admin'}
+            preparar={() => exportarProjetos(dados?.projetos ?? [], dados?.editais ?? [], dados?.inscricoes ?? [], hojeIso())}
+            importar={{
+              abas: ABAS_LEITURA_PROJETOS,
+              faltando: (lidas) => {
+                const novos = novosPorNome(projetosDeLinhas(lidas['Projetos'] ?? []), (p) => p.titulo, (dados?.projetos ?? []).map((p) => p.titulo));
+                return {
+                  nomes: novos.map((p) => p.titulo),
+                  gravar: async () => {
+                    const { error } = await supabase().from('projetos').insert(novos);
+                    if (error) throw new Error(error.message);
+                    await salvou();
+                  },
+                };
+              },
+            }}
           />
           {dados && (
             <p className="resumo">
@@ -103,7 +126,7 @@ export default function Projetos() {
           podeEditar
           podeApagar={membro.papel === 'admin'}
           aoFechar={() => setAberto(null)}
-          aoSalvar={recarregar}
+          aoSalvar={salvou}
         />
       )}
     </Tela>

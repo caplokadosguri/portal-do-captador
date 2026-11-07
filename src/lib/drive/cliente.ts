@@ -4,9 +4,10 @@
 // portal; a ponte confere no Supabase quem é e o que pode fazer.
 
 import type { Exportacao, Valor } from '../planilha';
+import { VERSAO_PONTE } from './codigoAppsScript';
 import { supabase } from '../supabase/cliente';
 
-export type PlanilhaDrive = 'editais' | 'abordagem';
+export type PlanilhaDrive = 'editais' | 'abordagem' | 'projetos';
 
 export interface ConfigDrive {
   url: string | null;
@@ -17,6 +18,7 @@ export const CHAVES_DRIVE = {
   url: 'drive_script_url',
   editais: 'drive_planilha_editais',
   abordagem: 'drive_planilha_abordagem',
+  projetos: 'drive_planilha_projetos',
 } as const;
 
 export async function lerConfigDrive(): Promise<ConfigDrive> {
@@ -24,7 +26,11 @@ export async function lerConfigDrive(): Promise<ConfigDrive> {
   const c = new Map((data ?? []).map((l: { chave: string; valor: string | null }) => [l.chave, l.valor]));
   return {
     url: c.get(CHAVES_DRIVE.url) ?? null,
-    planilhas: { editais: c.get(CHAVES_DRIVE.editais) ?? null, abordagem: c.get(CHAVES_DRIVE.abordagem) ?? null },
+    planilhas: {
+      editais: c.get(CHAVES_DRIVE.editais) ?? null,
+      abordagem: c.get(CHAVES_DRIVE.abordagem) ?? null,
+      projetos: c.get(CHAVES_DRIVE.projetos) ?? null,
+    },
   };
 }
 
@@ -46,6 +52,7 @@ export interface AbaDrive {
 
 export interface RespostaDrive {
   ok: boolean;
+  versao?: number;
   erro?: string;
   url?: string;
   nome?: string;
@@ -91,6 +98,9 @@ export async function chamarDrive(
   if (!r.ok) throw new Error(`O Drive respondeu ${r.status}.`);
   const corpo = (await r.json().catch(() => null)) as RespostaDrive | null;
   if (!corpo) throw new Error('Resposta inesperada do Drive. Confira o link da ponte em Início › Planilhas no Drive.');
+  if ((corpo.versao ?? 1) < VERSAO_PONTE) {
+    throw new Error('A ponte do Drive está desatualizada: atualize o código em Início › Planilhas no Drive.');
+  }
   if (!corpo.ok) throw new Error(corpo.erro ?? 'Erro no Drive.');
   return corpo;
 }

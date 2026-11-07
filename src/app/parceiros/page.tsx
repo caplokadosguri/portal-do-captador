@@ -82,14 +82,7 @@ export default function Parceiros() {
         cor={retomar.length ? '#E5533D' : '#B8692A'}
         meta={dados ? [`${andamento} em andamento`, `${fechados} fechadas ou confirmadas`, `${lista.length} no total`] : []}
         descricao={dados ? 'Cada empresa tem até quatro contatos registrados. Mais de 7 dias sem retorno aparece em “Retomar contato”.' : undefined}
-        acoes={
-          dados ? (
-            <>
-              {retomar[0] && <button type="button" className="botao" onClick={() => setAberto(retomar[0].id)}>▶ Retomar {retomar[0].organizacao}</button>}
-              <button type="button" className={retomar[0] ? 'botao secundario' : 'botao'} onClick={() => setAberto('nova')}>+ Nova abordagem</button>
-            </>
-          ) : undefined
-        }
+        acoes={retomar[0] ? <button type="button" className="botao" onClick={() => setAberto(retomar[0].id)}>▶ Retomar {retomar[0].organizacao}</button> : undefined}
       />
       <div className="miolo">
         <Ferramentas>

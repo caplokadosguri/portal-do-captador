@@ -229,7 +229,6 @@ export function montarFileirasProjetos(projetos: Projeto[]) {
   const nome = (a: Projeto, b: Projeto) => a.titulo.localeCompare(b.titulo, 'pt-BR');
   const ativos = projetos.filter((p) => p.status !== 'encerrado');
   return [
-    { chave: 'pronto', titulo: 'Prontos para inscrever', cor: '#3FA66B', itens: ativos.filter((p) => p.status === 'pronto').sort(nome) },
     ...ESFERAS.map((e) => ({ chave: e.valor, titulo: e.rotulo, cor: e.cor, itens: ativos.filter((p) => p.esfera === e.valor).sort(nome) })),
     { chave: 'sem_esfera', titulo: 'Sem esfera definida', cor: '#6B7F88', itens: ativos.filter((p) => !p.esfera).sort(nome) },
     { chave: 'encerrado', titulo: 'Encerrados', cor: '#6B7F88', itens: projetos.filter((p) => p.status === 'encerrado').sort(nome) },

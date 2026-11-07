@@ -51,12 +51,6 @@ export default function Admin() {
         cor="#3192B3"
         meta={numeros ? [`${numeros.membros} membros ativos`, `${numeros.doadores} doadores`, `${numeros.editais} editais abertos`, `${numeros.projetos} projetos`] : []}
         descricao="Você vê todas as áreas. As planilhas do CASD no Drive se atualizam sozinhas quando alguém salva algo no portal."
-        acoes={
-          <>
-            <button type="button" className="botao" onClick={() => router.push('/admin/importar')}>▶ Importar relatórios da Trackmob</button>
-            <button type="button" className="botao secundario" onClick={() => router.push('/admin/membros')}>Membros e perfis</button>
-          </>
-        }
       />
       <div className="miolo">
         <Fileira titulo="Áreas da Captação" cor="#F9B341">

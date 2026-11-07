@@ -8,18 +8,25 @@
 // administrador altera). Mexe só nas colunas do portal; fórmulas, cores,
 // listas e outras abas ficam como estão.
 
+/** Muda quando o código abaixo muda: o portal avisa se a ponte publicada estiver velha. */
+export const VERSAO_PONTE = 2;
+
 const CODIGO = String.raw`/**
  * Portal do Captador · CASD — ponte com o Drive.
  * Cole este código num projeto do Apps Script da conta da Captação e publique
  * em Implantar > Nova implantação > App da Web
  * (Executar como: Eu · Quem pode acessar: Qualquer pessoa).
+ * Para atualizar: cole o código novo, salve e vá em Implantar > Gerenciar
+ * implantações > editar (lápis) > Versão: Nova versão > Implantar.
  */
+var VERSAO = 2;
 var SUPABASE_URL = '__SUPABASE_URL__';
 var SUPABASE_CHAVE = '__SUPABASE_CHAVE__';
 
 // Quem pode mexer em cada aba.
 var PERMISSOES = {
   'editais': { '*': ['admin', 'editais'] },
+  'projetos': { '*': ['admin', 'editais'] },
   'abordagem': {
     'inadimplentes': ['admin', 'doadores'],
     'parceriasedoacoespj': ['admin', 'parceiros'],
@@ -69,6 +76,7 @@ function doPost(e) {
 }
 
 function resposta(obj) {
+  obj.versao = VERSAO;
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
