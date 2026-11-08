@@ -39,6 +39,13 @@ function doGet() {
   return resposta({ ok: true, servico: 'Portal do Captador - ponte com o Drive' });
 }
 
+/** Rode esta função uma vez no editor (Executar) para autorizar Planilhas, Drive e Documentos. */
+function autorizarPonte() {
+  SpreadsheetApp.flush();
+  DriveApp.getRootFolder().getName();
+  Logger.log('Ponte autorizada (' + typeof DocumentApp + ').');
+}
+
 function doPost(e) {
   try {
     var pedido = JSON.parse(e.postData.contents);
@@ -73,7 +80,11 @@ function doPost(e) {
     }
     throw new Error('Ação desconhecida: ' + pedido.acao);
   } catch (err) {
-    return resposta({ ok: false, erro: String(err && err.message ? err.message : err) });
+    var msg = String(err && err.message ? err.message : err);
+    if (/permiss|authoriz|autoriza/i.test(msg) && /DriveApp|DocumentApp|SpreadsheetApp/.test(msg)) {
+      msg = 'A ponte ainda não tem autorização para isso. No Apps Script, escolha a função autorizarPonte, clique em Executar e aceite. (' + msg + ')';
+    }
+    return resposta({ ok: false, erro: msg });
   }
 }
 

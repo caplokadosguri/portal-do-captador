@@ -106,11 +106,13 @@ export default function DriveAdmin() {
             <li>Entre em <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">script.google.com</a> com a conta da Captação e crie um projeto novo. Dê o nome “Portal do Captador”.</li>
             <li>Apague o que estiver no editor, cole o código abaixo e salve.</li>
             <li>Clique em <strong>Implantar › Nova implantação</strong>, escolha o tipo <strong>App da Web</strong>, em “Executar como” deixe <strong>Eu</strong> e em “Quem pode acessar” escolha <strong>Qualquer pessoa</strong>.</li>
-            <li>Clique em Implantar e autorize o acesso às planilhas. Copie o <strong>URL do app da Web</strong> e cole no passo 2.</li>
+            <li>Clique em Implantar e autorize o acesso. Depois, no editor, escolha a função <strong>autorizarPonte</strong> e clique em <strong>Executar</strong> para autorizar também Drive e Documentos. Copie o <strong>URL do app da Web</strong> e cole no passo 2.</li>
           </ol>
           <p className="suave pequeno" style={{ margin: 0 }}>
             Já criou a ponte antes? Quando o portal avisar que ela está desatualizada, cole o código novo, salve e vá em
             Implantar › Gerenciar implantações › editar (lápis) › Versão: <strong>Nova versão</strong> › Implantar. O link continua o mesmo.
+            Se a versão nova usar algo novo do Google (como Drive e Documentos, na v4), o Google não pede a autorização sozinho:
+            no editor, escolha a função <strong>autorizarPonte</strong> (ou doGet) na lista ao lado de “Depurar”, clique em <strong>Executar</strong> e aceite.
           </p>
           <p className="suave pequeno" style={{ margin: 0 }}>
             “Qualquer pessoa” só deixa o endereço acessível: a ponte confere o login do portal em cada pedido e só aceita membros

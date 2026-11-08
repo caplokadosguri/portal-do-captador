@@ -310,6 +310,13 @@ describe('ponte com o Drive: documentos', () => {
     expect(e.erro).toMatch(/Salvar como Documentos Google/);
   });
 
+  it('sem autorização do Drive: explica como autorizar', () => {
+    const extras = { DriveApp: { getFileById: () => { throw new Error('Exception: You do not have permission to call DriveApp.getFileById. Required permissions: https://www.googleapis.com/auth/drive'); } } };
+    const r = ponte(planilhaFalsa([]), 'admin', config, extras)({ acao: 'documento', planilha: 'projetos', abas: [], documento: { modelo: 'resumo_projeto', testar: true } });
+    expect(r.ok).toBe(false);
+    expect(r.erro).toMatch(/autorizarPonte/);
+  });
+
   it('recusa quem não pode mexer em projetos e modelo não ligado', () => {
     const { extras } = drive();
     const pedido = { acao: 'documento', planilha: 'projetos', abas: [], documento: { modelo: 'resumo_projeto', nome: 'x', campos: {} } };
