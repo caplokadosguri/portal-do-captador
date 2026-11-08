@@ -41,6 +41,8 @@ function doGet() {
 
 /** Rode esta função uma vez no editor (Executar) para autorizar Planilhas, Drive e Documentos. */
 function autorizarPonte() {
+  // Pede de uma vez tudo o que ainda não foi autorizado (o Google pede por função, não por projeto).
+  ScriptApp.requireAllScopes(ScriptApp.AuthMode.FULL);
   SpreadsheetApp.flush();
   DriveApp.getRootFolder().getName();
   Logger.log('Ponte autorizada (' + typeof DocumentApp + ').');
