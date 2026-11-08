@@ -410,3 +410,8 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .barra-progresso > span { display: block; height: 100%; border-radius: 999px; background: var(--cor-ficha, var(--azul)); max-width: 100%; }
 .selo-mini { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--cor-selo, #8e9ca3) 25%, transparent); border: 1px solid color-mix(in srgb, var(--cor-selo, #8e9ca3) 60%, transparent); }
 .tarefa-atrasada { color: #ff9d8f; }
+
+/* Abas da tela de entrada (tema claro) */
+.abas-login { display: flex; gap: 4px; border-bottom: 1px solid #d5dee2; }
+.abas-login button { border: 0; background: none; font: inherit; font-weight: 600; font-size: 15px; color: #6b7f88; padding: 10px 14px 9px; border-bottom: 3px solid transparent; cursor: pointer; }
+.abas-login button[aria-selected='true'] { color: #1b5973; border-bottom-color: #3192b3; }

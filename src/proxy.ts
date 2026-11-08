@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { COOKIE_REDEFINIR, precisaCriarSenha } from './lib/senha';
 
 // Renova a sessão do Supabase a cada pedido e manda quem não está logado para /login.
 export async function proxy(request: NextRequest) {
@@ -19,12 +20,21 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await sb.auth.getUser();
 
-  const publica = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth');
-  if (!user && !publica) {
+  const caminho = request.nextUrl.pathname;
+  const publica = caminho.startsWith('/login') || caminho.startsWith('/auth');
+  const ir = (destino: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = destino;
     url.search = '';
-    return NextResponse.redirect(url);
+    const r = NextResponse.redirect(url);
+    resposta.cookies.getAll().forEach((c) => r.cookies.set(c)); // não perde a sessão renovada
+    return r;
+  };
+  if (!user && !publica) return ir('/login');
+  // Primeiro acesso (ou "Esqueci minha senha"): só segue depois de criar a senha.
+  if (user && !caminho.startsWith('/senha') && !caminho.startsWith('/auth')) {
+    if (precisaCriarSenha(user.user_metadata, request.cookies.get(COOKIE_REDEFINIR)?.value === '1')) return ir('/senha');
+    if (caminho.startsWith('/login')) return ir('/');
   }
   return resposta;
 }

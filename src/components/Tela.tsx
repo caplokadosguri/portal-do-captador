@@ -63,6 +63,7 @@ export default function Tela({ membro, children }: { membro: Membro; children: R
           <div className="nav-menu">
             <p className="pequeno"><strong>{membro.nome}</strong><br /><span className="suave">{perfil.nome}</span></p>
             <Link href="/">Trocar perfil</Link>
+            <Link href="/senha">Trocar senha</Link>
             <button type="button" onClick={sair}>Sair do portal</button>
           </div>
         </details>
