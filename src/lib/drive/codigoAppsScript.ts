@@ -84,7 +84,7 @@ function doPost(e) {
   } catch (err) {
     var msg = String(err && err.message ? err.message : err);
     if (/permiss|authoriz|autoriza/i.test(msg) && /DriveApp|DocumentApp|SpreadsheetApp/.test(msg)) {
-      msg = 'A ponte ainda não tem autorização para isso. No Apps Script, escolha a função autorizarPonte, clique em Executar e aceite. (' + msg + ')';
+      msg = 'A ponte ainda não tem autorização para isso. No Apps Script, escolha a função autorizarPonte, clique em Executar e marque Selecionar tudo. (' + msg + ')';
     }
     return resposta({ ok: false, erro: msg });
   }
