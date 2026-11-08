@@ -112,7 +112,7 @@ export default function DriveAdmin() {
             Já criou a ponte antes? Quando o portal avisar que ela está desatualizada, cole o código novo, salve e vá em
             Implantar › Gerenciar implantações › editar (lápis) › Versão: <strong>Nova versão</strong> › Implantar. O link continua o mesmo.
             Se a versão nova usar algo novo do Google (como Drive e Documentos, na v4), o Google não pede a autorização sozinho:
-            no editor, escolha a função <strong>autorizarPonte</strong> na lista ao lado de “Depurar”, clique em <strong>Executar</strong> e aceite. Não precisa implantar de novo depois.
+            no editor, escolha a função <strong>autorizarPonte</strong> na lista ao lado de “Depurar”, clique em <strong>Executar</strong> e marque <strong>Selecionar tudo</strong> na tela do Google. Não precisa implantar de novo depois.
           </p>
           <p className="suave pequeno" style={{ margin: 0 }}>
             “Qualquer pessoa” só deixa o endereço acessível: a ponte confere o login do portal em cada pedido e só aceita membros
