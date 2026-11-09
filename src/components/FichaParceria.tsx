@@ -2,7 +2,7 @@
 
 import { CSSProperties, FormEvent, useEffect, useRef, useState } from 'react';
 import { formatarData } from '@/lib/contato';
-import { CANAIS, corStatus, Parceria, rotuloStatus, STATUS_ABORDAGEM, TIPOS_PARCERIA } from '@/lib/parceiros';
+import { CANAIS, corStatus, ETAPAS_FUNIL, etapaDoFunil, INTERESSES, Interesse, Parceria, rotuloStatus, STATUS_ABORDAGEM, TIPOS_PARCERIA } from '@/lib/parceiros';
 import { supabase } from '@/lib/supabase/cliente';
 import { hojeIso } from '@/lib/texto';
 
@@ -12,7 +12,7 @@ type Rascunho = Record<keyof Campos, string>;
 const VAZIO: Rascunho = {
   organizacao: '', pessoa: '', cargo: '', email: '', telefone: '', rede_social: '', contexto: '', canal: '', mensagem: '',
   tipo: '', responsavel: '', contato_1: '', contato_2: '', contato_3: '', contato_4: '', ultimo_retorno: '', proxima_acao: '',
-  status: 'contato_iniciado', observacoes: '',
+  status: 'a_abordar', interesse: '', observacoes: '',
 };
 
 export default function FichaParceria({
@@ -44,12 +44,13 @@ export default function FichaParceria({
 
   const muda = (k: keyof Rascunho) => (ev: { target: { value: string } }) => setR((x) => ({ ...x, [k]: ev.target.value }));
   const cor = corStatus(r.status as Parceria['status']);
+  const etapa = ETAPAS_FUNIL.find((e) => e.valor === etapaDoFunil({ status: r.status as Parceria['status'], interesse: (r.interesse || null) as Interesse | null }))!;
   const contatos = (['contato_1', 'contato_2', 'contato_3', 'contato_4'] as const).filter((k) => r[k]);
 
   function registrarHoje() {
     const livre = (['contato_1', 'contato_2', 'contato_3', 'contato_4'] as const).find((k) => !r[k]);
     if (!livre) return setAviso('Os quatro contatos já estão preenchidos.');
-    setR((x) => ({ ...x, [livre]: hojeIso(), status: x.status === 'contato_iniciado' && livre !== 'contato_1' ? 'aguardando_retorno' : x.status }));
+    setR((x) => ({ ...x, [livre]: hojeIso(), status: x.status === 'a_abordar' ? 'contato_iniciado' : x.status === 'contato_iniciado' && livre !== 'contato_1' ? 'aguardando_retorno' : x.status }));
   }
 
   async function salvar(ev: FormEvent) {
@@ -80,6 +81,7 @@ export default function FichaParceria({
           <h2 id="parceria-titulo">{r.organizacao.trim() || 'Nova abordagem'}</h2>
           <div className="linha pequeno" style={{ gap: 14 }}>
             <span className="linha" style={{ gap: 6 }}><span className="ponto" style={{ background: cor }} />{rotuloStatus(r.status as Parceria['status'])}</span>
+            <span className="linha" style={{ gap: 6 }}><span className="ponto" style={{ background: etapa.cor }} />{etapa.rotulo}</span>
             {r.pessoa && <span>{r.pessoa}{r.cargo ? ` · ${r.cargo}` : ''}</span>}
             {contatos.length > 0 && <span>{contatos.length} contato(s), último em {formatarData(r[contatos[contatos.length - 1]])}</span>}
           </div>
@@ -133,11 +135,22 @@ export default function FichaParceria({
             <label className="campo">Resumo do último retorno<input value={r.ultimo_retorno} onChange={muda('ultimo_retorno')} /></label>
             <label className="campo">Resumo da próxima ação prevista<input value={r.proxima_acao} onChange={muda('proxima_acao')} /></label>
           </div>
-          <label className="campo">Status da abordagem
-            <select value={r.status} onChange={muda('status')}>
-              {STATUS_ABORDAGEM.map((s) => <option key={s.valor} value={s.valor}>{s.rotulo}</option>)}
-            </select>
-          </label>
+          <div className="grade-2">
+            <label className="campo">Status da abordagem
+              <select value={r.status} onChange={muda('status')}>
+                {STATUS_ABORDAGEM.map((s) => <option key={s.valor} value={s.valor}>{s.rotulo}</option>)}
+              </select>
+            </label>
+            <label className="campo">Interesse da empresa (sua classificação)
+              <select value={r.interesse} onChange={muda('interesse')}>
+                <option value="">Ainda não classificada</option>
+                {INTERESSES.map((i) => <option key={i.valor} value={i.valor}>{i.rotulo}</option>)}
+              </select>
+            </label>
+          </div>
+          <p className="suave pequeno" style={{ margin: 0 }}>
+            Etapa no funil: <strong>{etapa.rotulo}</strong> ({etapa.descricao.toLowerCase()}). Abordada e classificada como morna ou quente, a empresa passa para o meio do funil.
+          </p>
         </section>
         <label className="campo">Observações<textarea value={r.observacoes} onChange={muda('observacoes')} /></label>
 

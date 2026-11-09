@@ -121,7 +121,7 @@ describe('plano de abordagem', () => {
       id: 'p', organizacao: 'Empresa Inventada', pessoa: 'Contato Teste', cargo: 'Gerente', email: 'contato@exemplo.com', telefone: null,
       rede_social: null, contexto: null, canal: 'LinkedIn', mensagem: null, tipo: 'Patrocínio incentivado', responsavel: 'Membro',
       contato_1: '2026-11-03', contato_2: null, contato_3: null, contato_4: null, ultimo_retorno: null, proxima_acao: 'Enviar proposta',
-      status: 'reuniao_marcada', observacoes: null,
+      status: 'reuniao_marcada', interesse: 'quente', observacoes: null,
     };
     const r = await preencherXlsx(modelo('abordagem'), exportarParcerias([p]).abas);
     const s = await aba(r.bytes, 'Parcerias e Doações PJ');

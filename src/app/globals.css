@@ -189,6 +189,7 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
   display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
 }
 .nav-menu p { margin: 0 0 4px; }
+.nav-menu { max-width: min(320px, 90vw); }
 .nav-menu a, .nav-menu button { color: #fff; text-decoration: none; background: none; border: 0; padding: 4px 0; text-align: left; cursor: pointer; font-size: 14px; }
 .nav-menu a:hover, .nav-menu button:hover { text-decoration: underline; }
 @media (max-width: 720px) {
@@ -320,6 +321,7 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .texto-erro { color: #ff9d8f; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tela-escura .pagina-escura { padding-top: 100px; }
+.tela-escura.com-aviso-sede .pagina-escura { padding-top: 140px; }
 .tela-escura { color-scheme: dark; }
 .grade-3, .grade-2 { align-items: end; }
 .grade-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }
@@ -415,3 +417,38 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .abas-login { display: flex; gap: 4px; border-bottom: 1px solid #d5dee2; }
 .abas-login button { border: 0; background: none; font: inherit; font-weight: 600; font-size: 15px; color: #6b7f88; padding: 10px 14px 9px; border-bottom: 3px solid transparent; cursor: pointer; }
 .abas-login button[aria-selected='true'] { color: #1b5973; border-bottom-color: #3192b3; }
+
+/* Funil de parcerias */
+.funil { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 8px 0 26px; }
+.funil ol { list-style: none; margin: 0; padding: 0; width: min(760px, 100%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.funil li { width: var(--largura); }
+.funil li button {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 8%;
+  border: 0; cursor: pointer; color: #0b161c; font: inherit; text-align: left;
+  background: var(--cor-etapa); clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
+  transition: filter .15s, transform .15s;
+}
+.funil li button:hover:not(:disabled) { filter: brightness(1.1); transform: scale(1.01); }
+.funil li button:disabled { cursor: default; opacity: .55; }
+.funil-nome { display: flex; flex-direction: column; font-weight: 700; font-size: 15px; line-height: 1.2; }
+.funil-nome small { font-weight: 500; font-size: 12px; opacity: .8; }
+.funil li strong { font-size: 24px; }
+.funil-fora { font-size: 13px; }
+@media (max-width: 560px) {
+  .funil li { width: calc(var(--largura) * .5 + 50%); }
+  .funil li button { padding: 10px 9%; }
+  .funil-nome small { display: none; }
+}
+
+/* Escala da sede */
+.dia-escala { border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--fundo-card); }
+.dia-escala.hoje { border-color: var(--azul); }
+.dia-escala.passou { opacity: .6; }
+.plantao { display: grid; grid-template-columns: 1.4fr .8fr 1fr 1.2fr auto; gap: 10px; align-items: end; }
+.plantao.sem-membro select:first-of-type { border-color: #F9B341; }
+@media (max-width: 760px) { .plantao { grid-template-columns: 1fr 1fr; } }
+.aviso-sede { position: absolute; top: 100%; left: 0; right: 0; display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; padding: 8px 16px; background: #F9B341; color: #1b2a30; font-size: 14px; font-weight: 600; }
+.aviso-sede button { border: 0; background: none; font: inherit; cursor: pointer; color: inherit; padding: 0 4px; }
+@media (max-width: 720px) {
+  .aviso-sede { flex-wrap: nowrap; justify-content: space-between; font-size: 12.5px; padding: 6px 12px; text-align: left; }
+}

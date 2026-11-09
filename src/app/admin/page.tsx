@@ -61,6 +61,7 @@ export default function Admin() {
         <Fileira titulo="Ferramentas da diretoria" cor="#3192B3">
           <Card titulo="Importar relatórios" linha="Doadores, doações e cobranças (CSV)" grande="Trackmob" cor="#2A9D8F" aoAbrir={() => router.push('/admin/importar')} />
           <Card titulo="Planilhas no Drive" linha="Ligar as planilhas do CASD ao portal" grande="Drive" cor="#3FA66B" aoAbrir={() => router.push('/admin/drive')} />
+          <Card titulo="Escala da sede" linha="Membros-de-dia da semana" grande="Sede" cor="#F9B341" aoAbrir={() => router.push('/admin/escala')} />
           <Card titulo="Membros e perfis" linha="Quem acessa o quê" grande={numeros ? `${numeros.membros} ativos` : undefined} cor="#8E6CD1" aoAbrir={() => router.push('/admin/membros')} />
         </Fileira>
 

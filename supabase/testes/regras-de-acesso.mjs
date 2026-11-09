@@ -13,7 +13,7 @@ grant usage on schema public to authenticated;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
 `)
-for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql", "0007_resumo_e_subabas.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
+for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql", "0007_resumo_e_subabas.sql", "0008_funil_e_escala.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
 await db.exec(`
 insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('par@casd.org','Par','parceiros',true,now()),('eve@casd.org','Eve','eventos',true,now()),('ex@casd.org','Ex','doadores',false,now());
 insert into doadores (id,nome) values ('D1','Fulano');
@@ -54,6 +54,13 @@ const casos = [
   ['eve@casd.org', "delete from evento_gastos returning descricao"],
   ['doa@casd.org', 'select count(*)::int n from evento_gastos'],
   ['par@casd.org', "insert into evento_metas (evento_id, descricao) select id, 'Público' from eventos limit 1 returning id"],
+  ['par@casd.org', "insert into parcerias (organizacao, interesse) values ('Empresa Funil', 'morno') returning status, interesse"],
+  ['par@casd.org', "update parcerias set interesse='fervendo' where organizacao='Empresa Funil' returning id"],
+  ['admin@casd.org', "insert into escala_sede (data, periodo, membro_email) values ('2026-11-12','Tarde','doa@casd.org') returning membro_email"],
+  ['doa@casd.org', "select data, periodo from escala_sede where membro_email = 'doa@casd.org'"],
+  ['doa@casd.org', "update escala_sede set membro_email='edi@casd.org' returning id"],
+  ['doa@casd.org', "insert into escala_sede (data) values ('2026-11-13') returning id"],
+  ['estranho@x.com', 'select count(*)::int n from escala_sede'],
   ['admin@casd.org', "insert into configuracoes (chave, valor) values ('drive_script_url','https://x') returning atualizado_por"],
   ['doa@casd.org', 'select chave from configuracoes'],
   ['doa@casd.org', "update configuracoes set valor='hack' returning chave"],

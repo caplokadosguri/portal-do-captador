@@ -4,7 +4,7 @@
 import { ABRANGENCIAS, ADERENCIAS, Edital, ESFERAS, NIVEIS, Projeto, SITUACOES, STATUS_PROJETO } from './editais';
 import { Evento, FREQUENCIAS, SITUACOES_EVENTO, TipoEvento, TIPOS } from './eventos';
 import { COLUNAS_DESCARTADOS, COLUNAS_EDITAIS, COLUNAS_EVENTOS, COLUNAS_PARCERIAS, COLUNAS_PROJETOS } from './exportacoes';
-import { Parceria, STATUS_ABORDAGEM } from './parceiros';
+import { Parceria, INTERESSES, STATUS_ABORDAGEM } from './parceiros';
 import { chaveDeCabecalho } from './planilha';
 import { lerAba } from './xlsxModelo';
 
@@ -152,7 +152,8 @@ export function parceriasDeLinhas(linhas: Linha[]): ParceriaNova[] {
       contato_4: iso(l['Data do 4º contato']),
       ultimo_retorno: txt(l['Resumo do último retorno']),
       proxima_acao: txt(l['Resumo da próxima ação prevista']),
-      status: deRotulo(STATUS_ABORDAGEM, l['Status da abordagem']) ?? 'contato_iniciado',
+      status: deRotulo(STATUS_ABORDAGEM, l['Status da abordagem']) ?? (iso(l['Data do 1º contato']) ? 'contato_iniciado' : 'a_abordar'),
+      interesse: deRotulo(INTERESSES, l['Interesse']) ?? null,
       observacoes: txt(l['Observações']),
     });
   }

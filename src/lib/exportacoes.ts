@@ -11,7 +11,7 @@ import {
   DETALHES_VAZIOS, DetalhesEventos, Financeiro, financeiro, GastoEvento, MetaEvento, PatrocinioEvento, progressoDaMeta, SITUACOES_GASTO,
   SITUACOES_PATROCINIO, TarefaEvento,
 } from './eventosDetalhe';
-import { Parceria, rotuloStatus } from './parceiros';
+import { Parceria, etapaDoFunil, rotuloEtapa, rotuloInteresse, rotuloStatus } from './parceiros';
 import type { Coluna, Exportacao } from './planilha';
 import { NOME_SITUACAO } from './situacao';
 import { diasEntre } from './texto';
@@ -384,6 +384,8 @@ export const COLUNAS_PARCERIAS: Coluna<Parceria>[] = [
   { titulo: 'Resumo do último retorno', outrosNomes: ['Último retorno'], largura: 34, valor: (p) => p.ultimo_retorno },
   { titulo: 'Resumo da próxima ação prevista', outrosNomes: ['Próxima ação'], largura: 30, valor: (p) => p.proxima_acao },
   { titulo: 'Status da abordagem', outrosNomes: ['Status'], largura: 26, valor: (p) => rotuloStatus(p.status) },
+  { titulo: 'Interesse', depoisDe: 'Status da abordagem', largura: 22, valor: (p) => rotuloInteresse(p.interesse) },
+  { titulo: 'Etapa do funil', depoisDe: 'Interesse', largura: 16, valor: (p) => rotuloEtapa(etapaDoFunil(p)) },
   { titulo: 'Observações', largura: 36, valor: (p) => p.observacoes },
 ];
 

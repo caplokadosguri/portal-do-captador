@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaParceria from '@/components/FichaParceria';
+import FunilParcerias from '@/components/FunilParcerias';
 import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
@@ -11,7 +12,7 @@ import { exportarParcerias } from '@/lib/exportacoes';
 import { ABAS_LEITURA_PARCERIAS, novosPorNome, parceriasDeLinhas } from '@/lib/importarPlanilha';
 import { podeVer, useMembro } from '@/lib/membro';
 import {
-  corStatus, emAndamento, montarFileirasParcerias, numeroDeContatos, Parceria, precisaRetomar, rotuloStatus, ultimoContato,
+  contarFunil, corStatus, emAndamento, montarFileirasParcerias, numeroDeContatos, Parceria, precisaRetomar, rotuloInteresse, rotuloStatus, ultimoContato,
 } from '@/lib/parceiros';
 import { supabase } from '@/lib/supabase/cliente';
 import { hojeIso } from '@/lib/texto';
@@ -55,7 +56,7 @@ export default function Parceiros() {
   const lista = dados?.lista ?? [];
   const andamento = lista.filter(emAndamento).length;
   const retomar = dados ? lista.filter((p) => precisaRetomar(p, dados.hoje)) : [];
-  const fechados = lista.filter((p) => p.status === 'parceria_fechada' || p.status === 'apoio_confirmado').length;
+  const funil = contarFunil(lista);
   const aberta = aberto && aberto !== 'nova' ? lista.find((p) => p.id === aberto) ?? null : null;
 
   const card = (p: Parceria) => {
@@ -65,7 +66,7 @@ export default function Parceiros() {
       <Card
         key={p.id}
         titulo={p.organizacao}
-        linha={[p.pessoa, u ? `último contato ${formatarData(u)}` : null].filter(Boolean).join(' · ')}
+        linha={[rotuloInteresse(p.interesse)?.split(' (')[0], p.pessoa, u ? `último contato ${formatarData(u)}` : null].filter(Boolean).join(' · ')}
         grande={p.tipo ?? (n ? `${n}º contato` : 'Sem contato')}
         selo={rotuloStatus(p.status)}
         cor={corStatus(p.status)}
@@ -80,8 +81,8 @@ export default function Parceiros() {
         rotulo="Plano de abordagem · Parcerias e doações PJ"
         titulo={!dados ? 'Carregando parcerias…' : retomar.length ? `${retomar.length} ${retomar.length === 1 ? 'empresa espera' : 'empresas esperam'} retorno` : `${andamento} abordagens em andamento`}
         cor={retomar.length ? '#E5533D' : '#B8692A'}
-        meta={dados ? [`${andamento} em andamento`, `${fechados} fechadas ou confirmadas`, `${lista.length} no total`] : []}
-        descricao={dados ? 'Cada empresa tem até quatro contatos registrados. Mais de 7 dias sem retorno aparece em “Retomar contato”.' : undefined}
+        meta={dados ? [`${funil.topo} no topo`, `${funil.meio} no meio`, `${funil.fundo} no fundo`, `${funil.pos} no pós-funil`] : []}
+        descricao={dados ? 'A etapa no funil vem do status da abordagem e da classificação de interesse feita pelo membro. Mais de 7 dias sem retorno aparece em “Retomar contato”.' : undefined}
         acoes={retomar[0] ? <button type="button" className="botao" onClick={() => setAberto(retomar[0].id)}>▶ Retomar {retomar[0].organizacao}</button> : undefined}
       />
       <div className="miolo">
@@ -119,10 +120,13 @@ export default function Parceiros() {
             {encontrados.map(card)}
           </Fileira>
         )}
+        {dados && lista.length > 0 && <FunilParcerias contagem={funil} />}
         {fileiras.filter((f) => f.itens.length > 0).map((f) => (
-          <Fileira key={f.chave} titulo={f.titulo} cor={f.cor} quantidade={f.itens.length}>
-            {f.itens.map(card)}
-          </Fileira>
+          <div key={f.chave} id={`fileira-${f.chave}`} style={{ scrollMarginTop: 90 }}>
+            <Fileira titulo={f.titulo} cor={f.cor} quantidade={f.itens.length}>
+              {f.itens.map(card)}
+            </Fileira>
+          </div>
         ))}
       </div>
       {aberto && dados && (

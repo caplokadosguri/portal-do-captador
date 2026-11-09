@@ -166,12 +166,14 @@ describe('ponte com o Drive (Apps Script)', () => {
     const exp = exportarParcerias([{
       id: 'p', organizacao: 'Empresa Inventada', pessoa: 'Contato', cargo: null, email: null, telefone: null, rede_social: null, contexto: null,
       canal: null, mensagem: null, tipo: null, responsavel: null, contato_1: '2026-11-03', contato_2: null, contato_3: null, contato_4: null,
-      ultimo_retorno: null, proxima_acao: null, status: 'reuniao_marcada', observacoes: null,
+      ultimo_retorno: null, proxima_acao: null, status: 'reuniao_marcada', interesse: 'quente', observacoes: null,
     }]);
     const chamar = ponte(ss, 'parceiros');
     expect(chamar({ acao: 'escrever', planilha: 'abordagem', abas: pedidoDeEscrita(exp) }).ok).toBe(true);
     expect(pj.cel(3, 2).v).toBe('Empresa Inventada');
-    expect(pj.cel(2, 5).v).toBe('Cargo'); // colunas novas entram no fim
+    // Colunas com lugar definido entram depois da coluna indicada; as outras, no fim.
+    expect([pj.cel(2, 5).v, pj.cel(2, 6).v, pj.cel(2, 7).v]).toEqual(['Interesse', 'Etapa do funil', 'Cargo']);
+    expect([pj.cel(3, 5).v, pj.cel(3, 6).v]).toEqual(['Quente (muito interesse)', 'Meio do funil']);
     const lido = chamar({ acao: 'ler', planilha: 'abordagem', abas: [{ aba: 'Parcerias e Doações PJ', colunas: pedidoDeEscrita(exp)[0].colunas }] });
     expect(lido.abas[0].linhas[0]).toMatchObject({ 'Organização': 'Empresa Inventada', 'Status da abordagem': 'Reunião marcada', 'Data do 1º contato': '2026-11-03' });
   });
