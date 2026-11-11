@@ -8,6 +8,7 @@ import {
   brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, inicioDoAtraso, motivoFalha, MotivoFalha,
   mesesEmAtraso, PontoDoPlano, pontoDoPlano, Situacao, situacao,
 } from './situacao';
+import { diasAteAniversario } from './aniversario';
 import { diasEntre, hojeIso, somarMeses } from './texto';
 
 export interface Doador {
@@ -21,6 +22,10 @@ export interface Doador {
   aceita_whatsapp: boolean | null;
   aceita_cartas: boolean | null;
   aceita_mala_direta: boolean | null;
+  nascimento_dia?: number | null;
+  nascimento_mes?: number | null;
+  /** Há endereço na Trackmob (o endereço em si não vem para o portal). */
+  tem_endereco?: boolean | null;
 }
 
 export interface Relacionamento {
@@ -33,7 +38,8 @@ export interface Relacionamento {
 
 export interface Brinde { id: string; doador_id: string; checkpoint: string; item: string | null; status: string }
 export interface Pontual { doador_id: string; status: string; convites: number }
-export interface Modelo { chave: string; titulo: string; texto: string }
+export interface ParteMensagem { rotulo: string; texto: string }
+export interface Modelo { chave: string; titulo: string; texto: string; partes?: ParteMensagem[]; ordem?: number }
 
 export interface VisaoDoador {
   doador: Doador;
@@ -73,7 +79,7 @@ export async function carregarCarteira(): Promise<Carteira> {
     buscarTudo<Relacionamento>((a, b) => sb.from('relacionamento').select('*').order('doador_id').range(a, b)),
     buscarTudo<Brinde>((a, b) => sb.from('brindes').select('*').order('id').range(a, b)),
     buscarTudo<Pontual>((a, b) => sb.from('trilha_pontual').select('*').order('doador_id').range(a, b)),
-    buscarTudo<Modelo>((a, b) => sb.from('modelos_mensagem').select('*').order('chave').range(a, b)),
+    buscarTudo<Modelo>((a, b) => sb.from('modelos_mensagem').select('*').order('ordem').order('chave').range(a, b)),
   ]);
 
   const porDoador = <T extends { doador_id: string | null }>(lista: T[]) => {
@@ -150,8 +156,16 @@ export function montarFileiras(c: Carteira): Fileira[] {
       (v.pontual?.convites ?? 0) < MAX_CONVITES_PONTUAL,
   );
 
+  // Aniversário nos próximos 7 dias, só de quem aceitou contato por WhatsApp ou e-mail.
+  const aniversariantes = visoes
+    .map((v) => ({ v, dias: diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) }))
+    .filter(({ v, dias }) => dias !== null && dias <= 6 && v.situacao !== 'cancelado' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
+    .sort((a, b) => a.dias! - b.dias! || nome(a.v).localeCompare(nome(b.v), 'pt-BR'))
+    .map(({ v }) => v);
+
   return [
     { chave: 'atencao', titulo: 'Precisa de atenção hoje', itens: ordenar(atencao) },
+    { chave: 'aniversarios', titulo: 'Aniversariantes da semana', itens: aniversariantes },
     { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_1')) },
     { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_2')) },
     { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_3')) },

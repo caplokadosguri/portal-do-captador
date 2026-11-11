@@ -161,7 +161,7 @@ describe('relatórios exportados com filtro de data', () => {
     expect(r.periodo).toEqual({ de: '2026-09-10', ate: '2026-11-10' });
     const d1 = r.apoio!.doacoes.find((d) => d.id === 'D1')!;
     expect(d1).toMatchObject({ doador_id: 'P1', frequencia: 'Mensal', status: 'Ativa', valor: 60, ultima_cobranca_paga: '2026-09-10', criada_em: '2025-03-15' });
-    expect(r.apoio!.doadores.find((d) => d.id === 'P1')).toEqual({ id: 'P1', nome: 'Pessoa Teste 1', email: 'teste1@exemplo.org', celular: '11999990000' });
+    expect(r.apoio!.doadores.find((d) => d.id === 'P1')).toEqual({ id: 'P1', nome: 'Pessoa Teste 1', email: 'teste1@exemplo.org', celular: '11999990000', tem_endereco: true });
     expect(JSON.stringify(r)).not.toMatch(/00000000000|Rua Teste|utm/);
     // Com a doação montada, os dois meses sem pagamento aparecem.
     expect(situacao(d1 as unknown as Doacao, r.linhas as unknown as Cobranca[], '2026-11-20')).toBe('atraso_2');

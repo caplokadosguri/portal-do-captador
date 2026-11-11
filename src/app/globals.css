@@ -452,3 +452,11 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 @media (max-width: 720px) {
   .aviso-sede { flex-wrap: nowrap; justify-content: space-between; font-size: 12.5px; padding: 6px 12px; text-align: left; }
 }
+
+/* Mensagem em partes (ficha do doador) */
+.partes-msg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.partes-msg li { border: 1px solid var(--linha); border-radius: var(--raio); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.partes-msg li.proxima { border-color: #25D366; }
+.partes-msg li.enviada { opacity: .65; }
+.partes-msg textarea { min-height: 0; }
+.botao.pequeno { padding: 6px 12px; font-size: 13px; }

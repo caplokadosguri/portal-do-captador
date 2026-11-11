@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Modelo, VisaoDoador } from '@/lib/carteira';
+import { diasAteAniversario } from '@/lib/aniversario';
+import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais, linkWhatsApp, preencherModelo, vcard } from '@/lib/contato';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
@@ -30,11 +31,17 @@ const CANAIS: [string, string, keyof VisaoDoador['doador'] | null][] = [
 
 interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; resultado: string | null; nota: string | null; criado_em: string }
 
-function modeloSugerido(v: VisaoDoador): string {
+/** Modelo do plano para o marco em que o doador está. */
+const MODELO_DO_MARCO: Record<string, string> = { inicio: 'boas_vindas', renovacao_1: 'renovacao_1', meses_6: 'meses_6', ano_1: 'ano_1' };
+
+function modeloSugerido(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'atualizar_cartao') return 'cartao_vencido';
   if (v.situacao.startsWith('atraso')) return 'cobranca';
+  if ((diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) ?? 99) <= 6) return 'aniversario';
   if (v.situacao === 'pontual') return 'pontual_convite';
-  return 'checkpoint';
+  const marco = v.plano?.atual?.chave;
+  if (!marco) return 'boas_vindas';
+  return MODELO_DO_MARCO[marco] ?? 'semestral';
 }
 function motivoDoContexto(v: VisaoDoador): string {
   if (v.situacao.startsWith('atraso')) return 'cobranca';
@@ -42,8 +49,10 @@ function motivoDoContexto(v: VisaoDoador): string {
   return 'plano';
 }
 
-export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalvar }: {
+export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro, aoFechar, aoSalvar }: {
   dadosDe?: string | null;
+  hoje: string;
+  nomeMembro: string;
   visao: VisaoDoador;
   modelos: Modelo[];
   aoFechar: () => void;
@@ -51,12 +60,23 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const { doador, principal } = visao;
-  const [chaveModelo, setChaveModelo] = useState(modeloSugerido(visao));
-  const preencher = (chave: string) => {
+  const [chaveModelo, setChaveModelo] = useState(() => {
+    const sugerido = modeloSugerido(visao, hoje);
+    return modelos.some((m) => m.chave === sugerido) ? sugerido : modelos[0]?.chave ?? '';
+  });
+  // A mensagem vai em partes, uma de cada vez, para parecer conversa e não disparo.
+  const preencher = (chave: string): ParteMensagem[] => {
     const m = modelos.find((x) => x.chave === chave);
-    return m ? preencherModelo(m.texto, { nome: doador.nome, valor: principal?.valor, meses: visao.plano?.mesesDeDoacao }) : '';
+    if (!m) return [];
+    const partes = m.partes?.length ? m.partes : [{ rotulo: 'Mensagem', texto: m.texto }];
+    const dados = {
+      nome: doador.nome, valor: principal?.valor, meses: visao.plano?.mesesDeDoacao, membro: nomeMembro,
+      brinde: visao.brinde?.item, tempo: visao.plano?.atual?.nome,
+    };
+    return partes.map((p) => ({ rotulo: p.rotulo, texto: preencherModelo(p.texto, dados) }));
   };
-  const [mensagem, setMensagem] = useState(() => preencher(chaveModelo));
+  const [partes, setPartes] = useState<ParteMensagem[]>(() => preencher(chaveModelo));
+  const [enviadas, setEnviadas] = useState<boolean[]>([]);
   const [rel, setRel] = useState({
     status_conversa: visao.rel?.status_conversa ?? '',
     proximo_contato: visao.rel?.proximo_contato ?? '',
@@ -85,16 +105,32 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
     if (!error) aoSalvar();
   }
 
-  const link = doador.aceita_whatsapp ? linkWhatsApp(doador.celular, mensagem) : null;
+  const podeWhatsApp = !!doador.aceita_whatsapp && !!linkWhatsApp(doador.celular, 'x');
+  const proxima = partes.findIndex((_, i) => !enviadas[i]);
 
-  async function abrirWhatsApp() {
+  async function enviarParte(i: number) {
+    const link = doador.aceita_whatsapp ? linkWhatsApp(doador.celular, partes[i].texto) : null;
     if (!link) return;
     window.open(link, '_blank', 'noopener');
+    const primeira = !enviadas.some(Boolean);
+    setEnviadas((e) => Object.assign([...e], { [i]: true }));
+    if (!primeira) return;
+    // Um registro por conversa, com o texto completo.
     const { error } = await supabase().from('contatos').insert({
-      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoContexto(visao), nota: mensagem.slice(0, 500),
+      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoContexto(visao),
+      nota: partes.map((p) => p.texto).join('\n\n').slice(0, 500),
     });
-    resultado(error, 'Contato por WhatsApp registrado.');
+    resultado(error, 'Contato por WhatsApp registrado. Envie as próximas partes em ordem.');
     carregarHistorico();
+  }
+
+  async function copiarParte(i: number) {
+    try {
+      await navigator.clipboard.writeText(partes[i].texto);
+      setAviso({ tipo: 'ok', texto: `Parte ${i + 1} copiada.` });
+    } catch {
+      setAviso({ tipo: 'erro', texto: 'Não deu para copiar neste navegador.' });
+    }
   }
 
   function baixarContato() {
@@ -185,6 +221,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
             <span>Última cobrança paga: {formatarData(principal?.ultima_cobranca_paga ?? ultimaPagaNasCobrancas)}</span>
             {visao.falha && <span>Motivo da falha: {visao.falha.mensagem ?? 'não informado'}</span>}
             {principal?.campanha && <span>Campanha: {principal.campanha}</span>}
+            {doador.nascimento_dia && doador.nascimento_mes && (
+              <span>Aniversário: {String(doador.nascimento_dia).padStart(2, '0')}/{String(doador.nascimento_mes).padStart(2, '0')}</span>
+            )}
           </div>
           <div className="cartao pilha" style={{ gap: 6 }}>
             <strong>Plano de doadores</strong>
@@ -197,6 +236,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
               <span className="suave">{visao.situacao === 'pontual' ? 'Trilha dos pontuais' : 'Fora do plano'}</span>
             )}
             <span className="suave">Aceita: {aceites.filter((a) => a.sim).map((a) => a.nome).join(', ') || 'nenhum canal'}</span>
+            <span className="suave">
+              {doador.tem_endereco === true ? 'Endereço fornecido' : doador.tem_endereco === false ? 'Sem endereço' : 'Endereço: importe o relatório de doadores'}
+            </span>
           </div>
         </section>
 
@@ -204,20 +246,40 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
           <h3>Mensagem</h3>
           <label className="campo">
             Modelo
-            <select value={chaveModelo} onChange={(e) => { setChaveModelo(e.target.value); setMensagem(preencher(e.target.value)); }}>
+            <select value={chaveModelo} onChange={(e) => { setChaveModelo(e.target.value); setPartes(preencher(e.target.value)); setEnviadas([]); }}>
               {modelos.map((m) => <option key={m.chave} value={m.chave}>{m.titulo}</option>)}
             </select>
           </label>
-          <label className="campo">
-            Texto (edite antes de enviar)
-            <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} />
-          </label>
+          <p className="suave pequeno" style={{ margin: 0 }}>
+            Envie uma parte de cada vez, na ordem. Cada botão abre a conversa com o texto daquela parte; edite à vontade antes.
+          </p>
+          <ol className="partes-msg">
+            {partes.map((p, i) => (
+              <li key={`${chaveModelo}-${i}`} className={enviadas[i] ? 'enviada' : i === proxima ? 'proxima' : undefined}>
+                <div className="linha" style={{ justifyContent: 'space-between' }}>
+                  <strong className="pequeno">{i + 1}. {p.rotulo}</strong>
+                  {enviadas[i] && <span className="pequeno">✓ enviada</span>}
+                </div>
+                <textarea
+                  aria-label={`Parte ${i + 1}: ${p.rotulo}`}
+                  value={p.texto}
+                  rows={Math.min(6, Math.max(2, Math.ceil(p.texto.length / 70)))}
+                  onChange={(e) => setPartes((ps) => ps.map((x, j) => (j === i ? { ...x, texto: e.target.value } : x)))}
+                />
+                <div className="linha">
+                  <button type="button" className="botao whatsapp pequeno" onClick={() => enviarParte(i)} disabled={!podeWhatsApp}>
+                    {enviadas[i] ? 'Enviar de novo' : 'Enviar no WhatsApp'}
+                  </button>
+                  <button type="button" className="botao secundario pequeno" onClick={() => copiarParte(i)}>Copiar</button>
+                </div>
+              </li>
+            ))}
+          </ol>
           <div className="linha">
-            <button type="button" className="botao whatsapp" onClick={abrirWhatsApp} disabled={!link}>Abrir no WhatsApp</button>
             <button type="button" className="botao secundario" onClick={baixarContato}>Baixar contato</button>
           </div>
           {!doador.aceita_whatsapp && <p className="suave pequeno">Este doador não aceitou contato por WhatsApp.</p>}
-          {doador.aceita_whatsapp && !link && <p className="suave pequeno">Celular ausente ou inválido.</p>}
+          {doador.aceita_whatsapp && !podeWhatsApp && <p className="suave pequeno">Celular ausente ou inválido.</p>}
         </section>
 
         <section className="pilha">
@@ -251,6 +313,11 @@ export default function FichaDoador({ visao, modelos, dadosDe, aoFechar, aoSalva
               </select>
             </label>
             {!doador.aceita_cartas && <p className="suave pequeno">Não aceitou cartas: não enviar brinde pelo correio.</p>}
+            {doador.aceita_cartas && (
+              <p className="suave pequeno">
+                {doador.tem_endereco ? 'Endereço fornecido na Trackmob: consulte lá para o envio.' : 'Sem endereço na Trackmob: combine a entrega com o doador.'}
+              </p>
+            )}
           </section>
         )}
 

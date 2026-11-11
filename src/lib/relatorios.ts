@@ -8,6 +8,13 @@ import { booleano, data, inteiro, normalizarTitulo, numero, texto } from './text
 export type TipoRelatorio = 'doacoes' | 'cobrancas' | 'doadores';
 
 type Conversor = (v: unknown) => unknown;
+
+// Do nascimento, só dia e mês (para o aniversário); o ano é descartado.
+const diaDoNascimento: Conversor = (v) => (data(v) ? Number(data(v)!.slice(8, 10)) : null);
+const mesDoNascimento: Conversor = (v) => (data(v) ? Number(data(v)!.slice(5, 7)) : null);
+
+// Do endereço, só se existe ou não. Rua, número, CEP etc. continuam descartados.
+const COLUNAS_ENDERECO = ['CEP', 'Rua', 'Número', 'Bairro', 'Cidade'];
 interface Coluna {
   titulo: string; // como aparece no relatório da Trackmob
   campo: string; // nome no banco
@@ -53,6 +60,8 @@ export const COLUNAS: Record<TipoRelatorio, Coluna[]> = {
     { titulo: 'Receber WhatsApp', campo: 'aceita_whatsapp', converter: booleano, obrigatoria: true },
     { titulo: 'Receber cartas', campo: 'aceita_cartas', converter: booleano },
     { titulo: 'Receber malas diretas', campo: 'aceita_mala_direta', converter: booleano },
+    { titulo: 'Data de nascimento', campo: 'nascimento_dia', converter: diaDoNascimento },
+    { titulo: 'Data de nascimento', campo: 'nascimento_mes', converter: mesDoNascimento },
   ],
 };
 
@@ -112,7 +121,12 @@ export function lerRelatorio(tipo: TipoRelatorio, csv: string): ResultadoLeitura
   };
   if (colunasFaltando.length) return resultado;
   const apoioUsadas = tipo === 'cobrancas' ? APOIO_COBRANCAS.filter((c) => indice.has(normalizarTitulo(c.titulo))) : [];
-  resultado.colunasDescartadas = Math.max(0, cabecalho.length - usadas.length - apoioUsadas.length);
+  const indicesEndereco = tipo === 'doadores' || tipo === 'cobrancas'
+    ? COLUNAS_ENDERECO.map((t) => indice.get(normalizarTitulo(t))).filter((i): i is number => i !== undefined)
+    : [];
+  const titulosUsados = new Set([...usadas, ...apoioUsadas].map((c) => normalizarTitulo(c.titulo)));
+  resultado.colunasDescartadas = Math.max(0, cabecalho.length - titulosUsados.size);
+  const temEndereco = (celulas: string[]) => indicesEndereco.some((i) => String(celulas[i] ?? '').trim() !== '');
   const apoio = new Map<string, Record<string, unknown>>();
   const colunaPeriodo = DATA_DO_PERIODO[tipo] ? indice.get(normalizarTitulo(DATA_DO_PERIODO[tipo]!)) : undefined;
 
@@ -132,6 +146,7 @@ export function lerRelatorio(tipo: TipoRelatorio, csv: string): ResultadoLeitura
     }
     if (vistos.has(id)) return; // linha repetida no mesmo arquivo: fica a primeira
     vistos.add(id);
+    if (tipo === 'doadores' && indicesEndereco.length) linha.tem_endereco = temEndereco(celulas);
     resultado.linhas.push(linha);
     if (colunaPeriodo !== undefined) {
       const d = data(celulas[colunaPeriodo]);
@@ -140,6 +155,7 @@ export function lerRelatorio(tipo: TipoRelatorio, csv: string): ResultadoLeitura
     if (apoioUsadas.length && linha.doacao_id && !apoio.has(linha.doacao_id as string)) {
       const a: Record<string, unknown> = {};
       for (const c of apoioUsadas) a[c.campo] = c.converter(celulas[indice.get(normalizarTitulo(c.titulo))!]);
+      if (indicesEndereco.length) a.tem_endereco = temEndereco(celulas);
       apoio.set(linha.doacao_id as string, a);
     }
   });
@@ -166,7 +182,11 @@ export function doacoesDasCobrancas(cobrancas: Record<string, unknown>[], apoio:
     const doadorId = cs[0].doador_id as string;
     const recente = [...cs].sort((x, y) => String(y.vencimento ?? '').localeCompare(String(x.vencimento ?? '')))[0];
     const pagos = cs.map((c) => c.pago_em as string | null).filter((d): d is string => !!d).sort();
-    if (!doadores.has(doadorId)) doadores.set(doadorId, { id: doadorId, nome: a.nome ?? null, email: a.email ?? null, celular: a.celular ?? null });
+    if (!doadores.has(doadorId)) {
+      const d: Record<string, unknown> = { id: doadorId, nome: a.nome ?? null, email: a.email ?? null, celular: a.celular ?? null };
+      if (a.tem_endereco !== undefined) d.tem_endereco = a.tem_endereco;
+      doadores.set(doadorId, d);
+    }
     doacoes.push({
       id,
       doador_id: doadorId,

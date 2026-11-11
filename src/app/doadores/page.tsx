@@ -6,6 +6,7 @@ import FichaDoador from '@/components/FichaDoador';
 import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
+import { diasAteAniversario, rotuloAniversario } from '@/lib/aniversario';
 import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais } from '@/lib/contato';
 import { ContatoDoador, exportarCarteira, exportarInadimplentes } from '@/lib/exportacoes';
@@ -27,7 +28,7 @@ const COR: Record<Situacao, string> = {
 };
 
 const COR_FILEIRA: Record<string, string> = {
-  atencao: '#E5533D', atraso_1: COR.atraso_1, atraso_2: COR.atraso_2, atraso_3: COR.atraso_3,
+  atencao: '#E5533D', aniversarios: '#F06FA8', atraso_1: COR.atraso_1, atraso_2: COR.atraso_2, atraso_3: COR.atraso_3,
   checkpoints: '#8E6CD1', pontuais: COR.pontual, em_dia: COR.em_dia, cancelado: COR.cancelado,
 };
 
@@ -42,8 +43,10 @@ async function prepararInadimplentes(carteira: Carteira | null) {
   return exportarInadimplentes(carteira?.visoes ?? [], contatos, (e) => nomes.get(e) ?? e, carteira?.hoje ?? '', carteira?.dadosDe ?? null);
 }
 
-function detalhe(v: VisaoDoador): string {
+function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.rel?.status_conversa === 'nova_mensagem') return 'Nova mensagem';
+  const { nascimento_dia: dia, nascimento_mes: mes } = v.doador;
+  if (dia && mes && (diasAteAniversario(dia, mes, hoje) ?? 99) <= 6) return `🎂 Aniversário ${rotuloAniversario(dia, mes, hoje)}`;
   if (v.falha?.motivo === 'atualizar_cartao') return 'Cartão precisa ser atualizado';
   if (v.falha?.motivo === 'lembrete') return 'Falta de saldo ou limite';
   if (v.brindeDevido && v.brinde?.status !== 'entregue') return `Brinde: ${v.brindeDevido.nome}`;
@@ -92,7 +95,7 @@ export default function Doadores() {
     <Card
       key={v.doador.id}
       titulo={v.doador.nome ?? 'Sem nome'}
-      linha={detalhe(v) || undefined}
+      linha={detalhe(v, carteira?.hoje ?? '') || undefined}
       grande={v.principal?.valor ? formatarReais(v.principal.valor) : undefined}
       selo={NOME_SITUACAO[v.situacao]}
       cor={COR[v.situacao]}
@@ -193,6 +196,8 @@ export default function Doadores() {
           visao={visaoAberta}
           modelos={carteira.modelos}
           dadosDe={carteira.dadosDe}
+          hoje={carteira.hoje}
+          nomeMembro={membro.nome}
           aoFechar={() => setAberto(null)}
           aoSalvar={salvou}
         />

@@ -16,13 +16,28 @@ export function linkWhatsApp(celular: string | null, mensagem: string): string |
 }
 
 /** Troca {nome}, {valor} e {meses} pelos dados do doador. */
-export function preencherModelo(modelo: string, dados: { nome?: string | null; valor?: number | null; meses?: number | null }): string {
-  const primeiroNome = (dados.nome ?? '').trim().split(/\s+/)[0] || '';
+export interface DadosDaMensagem {
+  nome?: string | null;
+  valor?: number | null;
+  meses?: number | null;
+  /** Quem envia (primeiro nome do membro). */
+  membro?: string | null;
+  /** Brinde do marco; sem brinde definido, "um presente". */
+  brinde?: string | null;
+  /** Tempo de doação por extenso, ex.: "1 ano e meio". */
+  tempo?: string | null;
+}
+
+export function preencherModelo(modelo: string, dados: DadosDaMensagem): string {
+  const primeiro = (s: string | null | undefined) => (s ?? '').trim().split(/\s+/)[0] || '';
   const valor = dados.valor == null ? '' : dados.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   return modelo
-    .replaceAll('{nome}', primeiroNome)
+    .replaceAll('{nome}', primeiro(dados.nome))
     .replaceAll('{valor}', valor)
-    .replaceAll('{meses}', dados.meses == null ? '' : String(dados.meses));
+    .replaceAll('{meses}', dados.meses == null ? '' : String(dados.meses))
+    .replaceAll('{membro}', primeiro(dados.membro) || 'a equipe')
+    .replaceAll('{brinde}', dados.brinde?.trim() || 'um presente')
+    .replaceAll('{tempo}', dados.tempo ?? (dados.meses == null ? '' : `${dados.meses} meses`));
 }
 
 function escaparVcf(s: string): string {
