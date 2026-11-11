@@ -25,6 +25,9 @@ export const INTERVALO_DEPOIS = 6;
 /** Doação única a partir deste valor recebe contato pessoal (PENDENTE: definir com o marketing). */
 export const VALOR_ALTO_PONTUAL = 500;
 
+/** Cadastros sem doação aparecem em "Cadastros para converter" por este tempo depois do cadastro. */
+export const DIAS_CADASTRO_RECENTE = 180;
+
 /** Convites para doação mensal antes de o pontual ficar só com a newsletter (PENDENTE). */
 export const MAX_CONVITES_PONTUAL = 3;
 

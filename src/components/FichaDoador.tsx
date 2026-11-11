@@ -39,6 +39,7 @@ function modeloSugerido(v: VisaoDoador, hoje: string): string {
   if (v.situacao.startsWith('atraso')) return 'cobranca';
   if ((diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) ?? 99) <= 6) return 'aniversario';
   if (v.situacao === 'pontual') return 'pontual_convite';
+  if (v.situacao === 'sem_doacao') return 'lead_convite';
   const marco = v.plano?.atual?.chave;
   if (!marco) return 'boas_vindas';
   return MODELO_DO_MARCO[marco] ?? 'semestral';
@@ -46,6 +47,7 @@ function modeloSugerido(v: VisaoDoador, hoje: string): string {
 function motivoDoContexto(v: VisaoDoador): string {
   if (v.situacao.startsWith('atraso')) return 'cobranca';
   if (v.situacao === 'pontual') return 'pontual';
+  if (v.situacao === 'sem_doacao') return 'lead';
   return 'plano';
 }
 
@@ -217,7 +219,8 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
         {visao.situacao === 'sem_doacao' && (
           <p className="aviso" role="note">
             Cadastro na Trackmob sem nenhuma doação (lead): a pessoa se cadastrou na página de doação mas não concluiu uma doação.
-            Não entra no plano de doadores nem nos aniversariantes.
+            Não entra no plano de doadores nem nos aniversariantes; aparece em “Cadastros para converter” se aceitou contato.
+            Quando não for mais convidar, marque “Resolvido” no acompanhamento.
           </p>
         )}
 

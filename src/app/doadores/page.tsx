@@ -30,7 +30,7 @@ const COR: Record<Situacao, string> = {
 
 const COR_FILEIRA: Record<string, string> = {
   atencao: '#E5533D', aniversarios: '#F06FA8', atraso_1: COR.atraso_1, atraso_2: COR.atraso_2, atraso_3: COR.atraso_3,
-  checkpoints: '#8E6CD1', pontuais: COR.pontual, em_dia: COR.em_dia, cancelado: COR.cancelado,
+  checkpoints: '#8E6CD1', pontuais: COR.pontual, cadastros: '#5DA9D6', em_dia: COR.em_dia, cancelado: COR.cancelado,
 };
 
 /** Busca os contatos de cobrança e o nome dos membros para a aba "Inadimplentes". */
@@ -52,6 +52,10 @@ function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'lembrete') return 'Falta de saldo ou limite';
   if (v.brindeDevido && v.brinde?.status !== 'entregue') return `Brinde: ${v.brindeDevido.nome}`;
   if (v.plano) return `${v.plano.proximo.nome} em ${formatarData(v.plano.dataProximo)}`;
+  if (v.situacao === 'sem_doacao') {
+    const quando = v.doador.cadastrado_em ? `Cadastro em ${formatarData(v.doador.cadastrado_em)}` : 'Cadastro sem doação';
+    return v.rel?.status_conversa ? `${quando} · conversa iniciada` : quando;
+  }
   if (v.situacao === 'pontual') return v.valorAlto ? 'Valor alto: contato pessoal' : `${v.pontual?.convites ?? 0} convite(s)`;
   return '';
 }

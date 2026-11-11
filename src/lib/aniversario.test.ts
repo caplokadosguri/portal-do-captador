@@ -43,3 +43,22 @@ describe('mensagens do plano', () => {
     expect(preencherModelo('{brinde}', { brinde: 'uma caneca' })).toBe('uma caneca');
   });
 });
+
+describe('cadastros para converter', () => {
+  it('só cadastros sem doação, recentes, com aceite e não resolvidos; mais recentes primeiro', async () => {
+    const { montarFileiras } = await import('./carteira');
+    const v = (id: string, cadastrado_em: string | null, x: { whats?: boolean; status?: string; situacao?: string } = {}) => ({
+      doador: { id, nome: id, email: null, celular: null, aceita_email: false, aceita_ligacao: false, aceita_sms: false, aceita_whatsapp: x.whats ?? true, aceita_cartas: false, aceita_mala_direta: false, cadastrado_em },
+      doacoes: [], principal: null, cobrancas: [], situacao: x.situacao ?? 'sem_doacao', mesesAtraso: null, atrasoDesde: null, falha: null, plano: null,
+      brindeDevido: null, brinde: null, rel: x.status ? { doador_id: id, responsavel: null, proximo_contato: null, status_conversa: x.status, anotacoes: null } : null,
+      pontual: null, virouMensal: false, valorAlto: false,
+    });
+    const visoes = [
+      v('Antigo', '2025-01-10'), v('Recente', '2026-11-01'), v('Mais recente', '2026-11-09'),
+      v('Sem aceite', '2026-11-05', { whats: false }), v('Resolvido', '2026-11-05', { status: 'resolvido' }),
+      v('Doador', '2026-11-05', { situacao: 'em_dia' }),
+    ];
+    const f = montarFileiras({ hoje: '2026-11-11', dadosDe: null, modelos: [], visoes } as never);
+    expect(f.find((x) => x.chave === 'cadastros')!.itens.map((x) => x.doador.id)).toEqual(['Mais recente', 'Recente']);
+  });
+});

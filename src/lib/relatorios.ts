@@ -64,6 +64,7 @@ export const COLUNAS: Record<TipoRelatorio, Coluna[]> = {
     { titulo: 'Receber WhatsApp', campo: 'aceita_whatsapp', converter: booleano, obrigatoria: true },
     { titulo: 'Receber cartas', campo: 'aceita_cartas', converter: booleano },
     { titulo: 'Receber malas diretas', campo: 'aceita_mala_direta', converter: booleano },
+    { titulo: 'Data de criação do doador', campo: 'cadastrado_em', converter: data },
     { titulo: 'Data de nascimento', campo: 'nascimento_dia', converter: diaDoNascimento },
     { titulo: 'Data de nascimento', campo: 'nascimento_mes', converter: mesDoNascimento },
   ],

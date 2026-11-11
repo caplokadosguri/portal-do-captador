@@ -3,7 +3,7 @@
 // Junta o espelho da Trackmob com o relacionamento do portal e monta a visão de cada doador.
 
 import { buscarTudo, supabase } from './supabase/cliente';
-import { MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
+import { DIAS_CADASTRO_RECENTE, MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
 import {
   brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, inicioDoAtraso, motivoFalha, MotivoFalha,
   mesesEmAtraso, PontoDoPlano, pontoDoPlano, Situacao, situacao,
@@ -26,6 +26,8 @@ export interface Doador {
   nascimento_mes?: number | null;
   /** Há endereço na Trackmob (o endereço em si não vem para o portal). */
   tem_endereco?: boolean | null;
+  /** Data do cadastro na Trackmob (relatório de doadores). */
+  cadastrado_em?: string | null;
 }
 
 export interface Relacionamento {
@@ -163,6 +165,14 @@ export function montarFileiras(c: Carteira): Fileira[] {
     .sort((a, b) => a.dias! - b.dias! || nome(a.v).localeCompare(nome(b.v), 'pt-BR'))
     .map(({ v }) => v);
 
+  // Cadastros sem doação dos últimos 6 meses que aceitaram contato: convite para a 1ª doação.
+  // Sai da fileira quando o acompanhamento é marcado como "Resolvido" (ou quando a pessoa doa).
+  const cadastros = visoes
+    .filter((v) => v.situacao === 'sem_doacao' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
+    .filter((v) => !!v.doador.cadastrado_em && diasEntre(v.doador.cadastrado_em, hoje) <= DIAS_CADASTRO_RECENTE)
+    .filter((v) => v.rel?.status_conversa !== 'resolvido')
+    .sort((a, b) => (b.doador.cadastrado_em ?? '').localeCompare(a.doador.cadastrado_em ?? ''));
+
   return [
     { chave: 'atencao', titulo: 'Precisa de atenção hoje', itens: ordenar(atencao) },
     { chave: 'aniversarios', titulo: 'Aniversariantes da semana', itens: aniversariantes },
@@ -175,6 +185,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
       titulo: 'Pontuais para convidar',
       itens: [...pontuais].sort((a, b) => Number(b.valorAlto) - Number(a.valorAlto) || nome(a).localeCompare(nome(b), 'pt-BR')),
     },
+    { chave: 'cadastros', titulo: 'Cadastros para converter (sem doação, últimos 6 meses)', itens: cadastros },
     { chave: 'em_dia', titulo: 'Mensais em dia', itens: ordenar(visoes.filter((v) => v.situacao === 'em_dia')) },
     { chave: 'cancelado', titulo: 'Cancelados', itens: ordenar(visoes.filter((v) => v.situacao === 'cancelado')) },
   ];
