@@ -136,7 +136,23 @@ export interface Fileira {
 export function montarFileiras(c: Carteira): Fileira[] {
   const { visoes, hoje } = c;
   const nome = (v: VisaoDoador) => v.doador.nome ?? '';
-  const ordenar = (l: VisaoDoador[]) => [...l].sort((a, b) => nome(a).localeCompare(nome(b), 'pt-BR'));
+  const porNome = (a: VisaoDoador, b: VisaoDoador) => nome(a).localeCompare(nome(b), 'pt-BR');
+  // Cada fileira em ordem de data (sem data vai para o fim; empate, por nome).
+  const porData = (l: VisaoDoador[], data: (v: VisaoDoador) => string | null | undefined, recentesPrimeiro = false) =>
+    [...l].sort((a, b) => {
+      const da = data(a) ?? null, db = data(b) ?? null;
+      if (da === db) return porNome(a, b);
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return recentesPrimeiro ? db.localeCompare(da) : da.localeCompare(db);
+    });
+  /** Data do marco do plano: o já alcançado com brinde pendente, senão o próximo. */
+  const dataDoMarco = (v: VisaoDoador) =>
+    v.brindeDevido && v.brinde?.status !== 'entregue' && v.plano?.atual && v.principal?.criada_em
+      ? somarMeses(v.principal.criada_em, v.plano.atual.meses)
+      : v.plano?.dataProximo;
+  const ultimaPontual = (v: VisaoDoador) =>
+    v.doacoes.filter(ehPontual).map((d) => d.criada_em).filter((d): d is string => !!d).sort().at(-1) ?? null;
 
   const atencao = visoes.filter(
     (v) =>
@@ -162,7 +178,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
   const aniversariantes = visoes
     .map((v) => ({ v, dias: diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) }))
     .filter(({ v, dias }) => dias !== null && dias <= 6 && v.situacao !== 'cancelado' && v.situacao !== 'sem_doacao' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
-    .sort((a, b) => a.dias! - b.dias! || nome(a.v).localeCompare(nome(b.v), 'pt-BR'))
+    .sort((a, b) => a.dias! - b.dias! || porNome(a.v, b.v))
     .map(({ v }) => v);
 
   // Cadastros sem doação dos últimos 6 meses que aceitaram contato: convite para a 1ª doação.
@@ -174,19 +190,21 @@ export function montarFileiras(c: Carteira): Fileira[] {
     .sort((a, b) => (b.doador.cadastrado_em ?? '').localeCompare(a.doador.cadastrado_em ?? ''));
 
   return [
-    { chave: 'atencao', titulo: 'Precisa de atenção hoje', itens: ordenar(atencao) },
+    { chave: 'atencao', titulo: 'Precisa de atenção hoje', itens: porData(atencao, (v) => v.rel?.proximo_contato ?? hoje) },
     { chave: 'aniversarios', titulo: 'Aniversariantes da semana', itens: aniversariantes },
-    { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_1')) },
-    { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_2')) },
-    { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: ordenar(visoes.filter((v) => v.situacao === 'atraso_3')) },
-    { chave: 'checkpoints', titulo: 'Checkpoints desta semana', itens: ordenar(checkpoints) },
+    // Atrasos: quem está em aberto há mais tempo primeiro (mais perto de passar para o mês seguinte).
+    { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: porData(visoes.filter((v) => v.situacao === 'atraso_1'), (v) => v.atrasoDesde) },
+    { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: porData(visoes.filter((v) => v.situacao === 'atraso_2'), (v) => v.atrasoDesde) },
+    { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: porData(visoes.filter((v) => v.situacao === 'atraso_3'), (v) => v.atrasoDesde) },
+    { chave: 'checkpoints', titulo: 'Checkpoints desta semana', itens: porData(checkpoints, dataDoMarco) },
     {
       chave: 'pontuais',
       titulo: 'Pontuais para convidar',
-      itens: [...pontuais].sort((a, b) => Number(b.valorAlto) - Number(a.valorAlto) || nome(a).localeCompare(nome(b), 'pt-BR')),
+      // Valor alto primeiro; depois a doação mais recente.
+      itens: [...porData(pontuais, ultimaPontual, true)].sort((a, b) => Number(b.valorAlto) - Number(a.valorAlto)),
     },
     { chave: 'cadastros', titulo: 'Cadastros para converter (sem doação, últimos 6 meses)', itens: cadastros },
-    { chave: 'em_dia', titulo: 'Mensais em dia', itens: ordenar(visoes.filter((v) => v.situacao === 'em_dia')) },
-    { chave: 'cancelado', titulo: 'Cancelados', itens: ordenar(visoes.filter((v) => v.situacao === 'cancelado')) },
+    { chave: 'em_dia', titulo: 'Mensais em dia', itens: porData(visoes.filter((v) => v.situacao === 'em_dia'), (v) => v.plano?.dataProximo) },
+    { chave: 'cancelado', titulo: 'Cancelados', itens: porData(visoes.filter((v) => v.situacao === 'cancelado'), (v) => v.principal?.finalizada_em, true) },
   ];
 }

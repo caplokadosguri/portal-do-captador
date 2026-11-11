@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
-import { formatarData, formatarReais, linkWhatsApp, preencherModelo, vcard } from '@/lib/contato';
+import { formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -29,7 +29,7 @@ const CANAIS: [string, string, keyof VisaoDoador['doador'] | null][] = [
   ['sms', 'SMS', 'aceita_sms'], ['carta', 'Carta', 'aceita_cartas'], ['presencial', 'Presencial', null],
 ];
 
-interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; resultado: string | null; nota: string | null; criado_em: string }
+interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; modelo: string | null; resultado: string | null; nota: string | null; criado_em: string }
 
 /** Modelo do plano para o marco em que o doador está. */
 const MODELO_DO_MARCO: Record<string, string> = { inicio: 'boas_vindas', renovacao_1: 'renovacao_1', meses_6: 'meses_6', ano_1: 'ano_1' };
@@ -44,13 +44,6 @@ function modeloSugerido(v: VisaoDoador, hoje: string): string {
   if (!marco) return 'boas_vindas';
   return MODELO_DO_MARCO[marco] ?? 'semestral';
 }
-function motivoDoContexto(v: VisaoDoador): string {
-  if (v.situacao.startsWith('atraso')) return 'cobranca';
-  if (v.situacao === 'pontual') return 'pontual';
-  if (v.situacao === 'sem_doacao') return 'lead';
-  return 'plano';
-}
-
 export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro, aoFechar, aoSalvar }: {
   dadosDe?: string | null;
   hoje: string;
@@ -84,8 +77,11 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     proximo_contato: visao.rel?.proximo_contato ?? '',
     anotacoes: visao.rel?.anotacoes ?? '',
   });
-  const [registro, setRegistro] = useState({ canal: 'ligacao', resultado: '', nota: '' });
+  const [registro, setRegistro] = useState<{ canal: string; motivo: MotivoContato; resultado: string; nota: string }>(
+    () => ({ canal: 'ligacao', motivo: motivoDoModelo(chaveModelo), resultado: '', nota: '' }),
+  );
   const [historico, setHistorico] = useState<ContatoRegistrado[]>([]);
+  const [filtro, setFiltro] = useState<MotivoContato | 'todos'>('todos');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   useEffect(() => {
@@ -98,7 +94,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
 
   async function carregarHistorico() {
     const { data } = await supabase()
-      .from('contatos').select('*').eq('doador_id', doador.id).order('criado_em', { ascending: false }).limit(20);
+      .from('contatos').select('*').eq('doador_id', doador.id).order('criado_em', { ascending: false }).limit(50);
     setHistorico((data as ContatoRegistrado[]) ?? []);
   }
 
@@ -119,7 +115,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!primeira) return;
     // Um registro por conversa, com o texto completo.
     const { error } = await supabase().from('contatos').insert({
-      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoContexto(visao),
+      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoModelo(chaveModelo), modelo: chaveModelo,
       nota: partes.map((p) => p.texto).join('\n\n').slice(0, 500),
     });
     resultado(error, 'Contato por WhatsApp registrado. Envie as próximas partes em ordem.');
@@ -159,7 +155,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
 
   async function registrarContato() {
     const { error } = await supabase().from('contatos').insert({
-      doador_id: doador.id, canal: registro.canal, motivo: motivoDoContexto(visao),
+      doador_id: doador.id, canal: registro.canal, motivo: registro.motivo,
       resultado: registro.resultado || null, nota: registro.nota || null,
     });
     resultado(error, 'Contato registrado.');
@@ -256,7 +252,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           <h3>Mensagem</h3>
           <label className="campo">
             Modelo
-            <select value={chaveModelo} onChange={(e) => { setChaveModelo(e.target.value); setPartes(preencher(e.target.value)); setEnviadas([]); }}>
+            <select value={chaveModelo} onChange={(e) => { setChaveModelo(e.target.value); setPartes(preencher(e.target.value)); setEnviadas([]); setRegistro((r) => ({ ...r, motivo: motivoDoModelo(e.target.value) })); }}>
               {modelos.map((m) => <option key={m.chave} value={m.chave}>{m.titulo}</option>)}
             </select>
           </label>
@@ -360,6 +356,12 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
               </select>
             </label>
             <label className="campo">
+              Tipo de contato
+              <select value={registro.motivo} onChange={(e) => setRegistro({ ...registro, motivo: e.target.value as MotivoContato })}>
+                {MOTIVOS_CONTATO.map((m) => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+              </select>
+            </label>
+            <label className="campo">
               Resultado
               <input value={registro.resultado} onChange={(e) => setRegistro({ ...registro, resultado: e.target.value })} placeholder="Ex.: vai atualizar o cartão" />
             </label>
@@ -373,17 +375,40 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
 
         <section className="pilha">
           <h3>Histórico</h3>
+          {historico.length > 0 && (
+            <div className="chips" role="group" aria-label="Filtrar por tipo de contato">
+              <button type="button" className={`chip-filtro${filtro === 'todos' ? ' ativo' : ''}`} onClick={() => setFiltro('todos')}>
+                Todos ({historico.length})
+              </button>
+              {MOTIVOS_CONTATO.filter((m) => historico.some((h) => h.motivo === m.valor)).map((m) => (
+                <button
+                  key={m.valor}
+                  type="button"
+                  className={`chip-filtro${filtro === m.valor ? ' ativo' : ''}`}
+                  style={{ '--cor-chip': m.cor } as React.CSSProperties}
+                  onClick={() => setFiltro(m.valor)}
+                >
+                  {m.rotulo} ({historico.filter((h) => h.motivo === m.valor).length})
+                </button>
+              ))}
+            </div>
+          )}
           {historico.length === 0 ? (
             <p className="vazio">Nenhum contato registrado.</p>
           ) : (
             <ul className="lista-simples">
-              {historico.map((h) => (
-                <li key={h.id}>
-                  <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal} · {h.motivo} · {h.membro}
-                  {h.resultado && <> · {h.resultado}</>}
-                  {h.nota && <div className="suave">{h.nota}</div>}
-                </li>
-              ))}
+              {historico.filter((h) => filtro === 'todos' || h.motivo === filtro).map((h) => {
+                const m = MOTIVOS_CONTATO.find((x) => x.valor === h.motivo);
+                const modelo = h.modelo ? modelos.find((x) => x.chave === h.modelo)?.titulo : null;
+                return (
+                  <li key={h.id}>
+                    <span className="selo-mini" style={{ '--cor-selo': m?.cor ?? '#8E9CA3' } as React.CSSProperties}>{m?.rotulo ?? h.motivo}</span>{' '}
+                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''} · {h.membro}
+                    {h.resultado && <> · {h.resultado}</>}
+                    {h.nota && <div className="suave">{h.nota}</div>}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

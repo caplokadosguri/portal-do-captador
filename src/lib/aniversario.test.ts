@@ -62,3 +62,37 @@ describe('cadastros para converter', () => {
     expect(f.find((x) => x.chave === 'cadastros')!.itens.map((x) => x.doador.id)).toEqual(['Mais recente', 'Recente']);
   });
 });
+
+describe('ordem por data nas fileiras e tipos de contato', () => {
+  it('atrasos do mais antigo, checkpoints do mais próximo, cancelados do mais recente', async () => {
+    const { montarFileiras } = await import('./carteira');
+    const base = (id: string, x: object) => ({
+      doador: { id, nome: id, email: null, celular: null, aceita_email: true, aceita_ligacao: false, aceita_sms: false, aceita_whatsapp: true, aceita_cartas: false, aceita_mala_direta: false },
+      doacoes: [], principal: null, cobrancas: [], mesesAtraso: null, atrasoDesde: null, falha: null, plano: null,
+      brindeDevido: null, brinde: null, rel: null, pontual: null, virouMensal: false, valorAlto: false, ...x,
+    });
+    const plano = (dataProximo: string) => ({ atual: null, proximo: { chave: 'x', nome: 'x', meses: 6, brinde: true }, dataProximo, mesesDeDoacao: 5 });
+    const visoes = [
+      base('A', { situacao: 'atraso_1', atrasoDesde: '2026-10-20' }),
+      base('B', { situacao: 'atraso_1', atrasoDesde: '2026-10-05' }),
+      base('C', { situacao: 'em_dia', plano: plano('2026-11-16') }),
+      base('D', { situacao: 'em_dia', plano: plano('2026-11-12') }),
+      base('E', { situacao: 'cancelado', principal: { finalizada_em: '2026-01-01' } }),
+      base('F', { situacao: 'cancelado', principal: { finalizada_em: '2026-09-01' } }),
+    ];
+    const f = montarFileiras({ hoje: '2026-11-11', dadosDe: null, modelos: [], visoes } as never);
+    const ids = (k: string) => f.find((x) => x.chave === k)!.itens.map((v) => v.doador.id);
+    expect(ids('atraso_1')).toEqual(['B', 'A']);
+    expect(ids('checkpoints')).toEqual(['D', 'C']);
+    expect(ids('em_dia')).toEqual(['D', 'C']);
+    expect(ids('cancelado')).toEqual(['F', 'E']);
+  });
+
+  it('o tipo do contato vem do modelo usado, não da situação do doador', async () => {
+    const { motivoDoModelo } = await import('./contato');
+    expect(motivoDoModelo('aniversario')).toBe('aniversario');
+    expect(motivoDoModelo('cartao_vencido')).toBe('cobranca');
+    expect(motivoDoModelo('ano_1')).toBe('plano');
+    expect(motivoDoModelo('lead_convite')).toBe('lead');
+  });
+});

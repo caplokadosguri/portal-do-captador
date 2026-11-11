@@ -9,7 +9,7 @@
 // listas e outras abas ficam como estão.
 
 /** Muda quando o código abaixo muda: o portal avisa se a ponte publicada estiver velha. */
-export const VERSAO_PONTE = 4;
+export const VERSAO_PONTE = 6;
 
 const CODIGO = String.raw`/**
  * Portal do Captador · CASD — ponte com o Drive.
@@ -19,7 +19,7 @@ const CODIGO = String.raw`/**
  * Para atualizar: cole o código novo, salve e vá em Implantar > Gerenciar
  * implantações > editar (lápis) > Versão: Nova versão > Implantar.
  */
-var VERSAO = 4;
+var VERSAO = 6;
 var SUPABASE_URL = '__SUPABASE_URL__';
 var SUPABASE_CHAVE = '__SUPABASE_CHAVE__';
 
@@ -71,7 +71,14 @@ function doPost(e) {
       var trava = LockService.getScriptLock();
       trava.waitLock(30000);
       try {
-        var escritas = abas.map(function (a) { return escreverAba(ss, a); });
+        var escritas = abas.map(function (a) {
+          try {
+            return escreverAba(ss, a);
+          } catch (e) {
+            // Diz em que aba e etapa parou, para dar para corrigir sem abrir o código.
+            throw new Error('Aba "' + a.aba + '"' + (ETAPA ? ' (' + ETAPA + ')' : '') + ': ' + (e && e.message ? e.message : e));
+          }
+        });
         SpreadsheetApp.flush();
         var agora = new Date().toISOString();
         props.setProperty('ultima_' + pedido.planilha, agora);
@@ -263,10 +270,31 @@ function letra(n) {
   return s;
 }
 
+/**
+ * Desfaz as mesclas da linha "desde" para baixo. Cada mescla é desfeita inteira
+ * (getMergedRanges devolve a mescla completa), porque desfazer só um pedaço
+ * dá o erro "É necessário selecionar todas as células em um intervalo...".
+ */
+var ETAPA = '';
+
+/** Desfaz as mesclas (inteiras) que tocam a faixa indicada. */
+function desfazerMesclasEm(faixa) {
+  faixa.getMergedRanges().forEach(function (m) { m.breakApart(); });
+}
+
+function desfazerMesclas(aba, desde) {
+  if (desde > aba.getMaxRows()) return;
+  aba.getRange(desde, 1, aba.getMaxRows() - desde + 1, aba.getMaxColumns()).getMergedRanges()
+    .forEach(function (m) { m.breakApart(); });
+}
+
 function escreverAba(ss, a) {
+  ETAPA = 'lendo o cabeçalho';
   var aba = ss.getSheetByName(a.aba);
   if (!aba) aba = ss.insertSheet(a.aba);
   var cab = acharCabecalho(aba, a.colunas);
+  // Mesclas na linha do cabeçalho escondem títulos e travam a escrita: desfaz.
+  if (cab) desfazerMesclasEm(aba.getRange(cab.linha, 1, 1, aba.getMaxColumns()));
 
   // Aba nova ou sem cabeçalho: cria o cabeçalho na primeira linha livre.
   if (!cab) {
@@ -283,17 +311,27 @@ function escreverAba(ss, a) {
     if (cab.mapa.indexOf(i) >= 0) return;
     var depois = c.depoisDe ? a.colunas.map(function (x) { return x.titulo; }).indexOf(c.depoisDe) : -1;
     var colDepois = depois >= 0 ? cab.mapa.indexOf(depois) + 1 : 0;
-    if (colDepois > 0) aba.insertColumnAfter(colDepois);
+    ETAPA = 'criando a coluna ' + c.titulo;
+    // Inserir coluna no meio de uma mescla dá "É necessário selecionar todas as células...".
+    // Desfaz as que atravessam o ponto da coluna nova, em qualquer linha (título, faixas por mês…).
+    if (colDepois > 0) {
+      desfazerMesclasEm(aba.getRange(1, colDepois, aba.getMaxRows(), Math.min(2, aba.getMaxColumns() - colDepois + 1)));
+      aba.insertColumnAfter(colDepois);
+    }
     var col = colDepois > 0 ? colDepois + 1 : Math.max(aba.getLastColumn(), cab.mapa.length) + 1;
     if (col > aba.getMaxColumns()) aba.insertColumnsAfter(aba.getMaxColumns(), col - aba.getMaxColumns());
     var celCab = aba.getRange(cab.linha, col);
-    if (colDepois <= 0 && col > 1) aba.getRange(cab.linha, col - 1).copyTo(celCab, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    desfazerMesclasEm(celCab);
+    // Copiar o formato de um pedaço de mescla também dá erro: só copia de célula solta.
+    var vizinha = col > 1 ? aba.getRange(cab.linha, col - 1) : null;
+    if (colDepois <= 0 && vizinha && !vizinha.isPartOfMerge()) vizinha.copyTo(celCab, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
     celCab.setValue(c.titulo);
     if (c.tipo === 'data') aba.getRange(cab.linha + 1, col, Math.max(aba.getMaxRows() - cab.linha, 1), 1).setNumberFormat('dd/mm/yyyy');
     if (c.tipo === 'moeda') aba.getRange(cab.linha + 1, col, Math.max(aba.getMaxRows() - cab.linha, 1), 1).setNumberFormat('"R$" #,##0.00');
     cab = acharCabecalho(aba, a.colunas);
   });
 
+  ETAPA = 'escrevendo as linhas';
   var h = cab.linha;
   var largura = Math.max(aba.getLastColumn(), cab.mapa.length);
   var ultimaAntes = aba.getLastRow();
@@ -339,8 +377,9 @@ function escreverAba(ss, a) {
         if (algo) extras[k] = reg;
       });
     }
-    // Desfaz mesclas e apaga o conteúdo (não a formatação) das colunas sem fórmula.
-    aba.getRange(h + 1, 1, ultimaAntes - h, largura).breakApart();
+    // Desfaz mesclas (inteiras: as que passam da área também) e apaga o conteúdo
+    // (não a formatação) das colunas sem fórmula.
+    desfazerMesclas(aba, h + 1);
     cab.mapa.forEach(function (i, c) {
       if ((i >= 0 || extrasCols.indexOf(c) >= 0) && !primeira[c]) aba.getRange(h + 1, c + 1, ultimaAntes - h, 1).clearContent();
     });
@@ -348,6 +387,8 @@ function escreverAba(ss, a) {
 
   if (!n) return { aba: a.aba, linhas: 0, gid: aba.getSheetId() };
   var fim = inicio + n - 1;
+  // Área de dados ainda vazia (ou modo diário): pode haver mesclas do modelo antigo onde vamos escrever.
+  if (a.modo === 'diario' || ultimaAntes <= h) desfazerMesclas(aba, inicio);
   if (fim > aba.getMaxRows()) aba.insertRowsAfter(aba.getMaxRows(), fim - aba.getMaxRows());
 
   // Linhas novas além das que o modelo já tinha: copiam formato e listas da primeira linha de dados.
@@ -391,13 +432,16 @@ function escreverAba(ss, a) {
     aba.getRange(h + 1, c + 1).copyTo(aba.getRange(h + 2, c + 1, fim - h - 1, 1), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
   });
 
+  ETAPA = 'atualizando a data do título';
   (a.ajustes || []).forEach(function (aj) {
     var cel = aba.getRange(aj.celula);
+    if (cel.isPartOfMerge()) cel = cel.getMergedRanges()[0].getCell(1, 1);
     var atual = String(cel.getDisplayValue());
     var pos = atual.toLowerCase().indexOf(String(aj.depoisDe).toLowerCase());
     if (pos >= 0) cel.setValue(atual.slice(0, pos + aj.depoisDe.length) + ' ' + aj.texto);
   });
 
+  ETAPA = '';
   return { aba: a.aba, linhas: n, gid: aba.getSheetId() };
 }
 `;

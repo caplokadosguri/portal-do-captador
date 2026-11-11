@@ -67,3 +67,26 @@ export function formatarData(iso: string | null): string {
   const [a, m, d] = iso.split('-');
   return `${d}/${m}/${a}`;
 }
+
+// Tipos de contato: cada conversa fica registrada com o motivo, para o histórico
+// separar cobrança de aniversário, plano, convites etc.
+export type MotivoContato = 'cobranca' | 'plano' | 'aniversario' | 'pontual' | 'lead' | 'outro';
+
+export const MOTIVOS_CONTATO: { valor: MotivoContato; rotulo: string; cor: string }[] = [
+  { valor: 'cobranca', rotulo: 'Cobrança', cor: '#E07B39' },
+  { valor: 'plano', rotulo: 'Plano de doadores', cor: '#8E6CD1' },
+  { valor: 'aniversario', rotulo: 'Aniversário', cor: '#F06FA8' },
+  { valor: 'pontual', rotulo: 'Convite (pontual)', cor: '#3192B3' },
+  { valor: 'lead', rotulo: 'Convite (cadastro)', cor: '#5DA9D6' },
+  { valor: 'outro', rotulo: 'Outro', cor: '#8E9CA3' },
+];
+
+/** Motivo do contato pelo modelo de mensagem usado. */
+export function motivoDoModelo(chave: string): MotivoContato {
+  if (chave === 'cobranca' || chave === 'cartao_vencido') return 'cobranca';
+  if (chave === 'aniversario') return 'aniversario';
+  if (chave === 'pontual_convite') return 'pontual';
+  if (chave === 'lead_convite') return 'lead';
+  if (['boas_vindas', 'renovacao_1', 'meses_6', 'ano_1', 'semestral', 'checkpoint'].includes(chave)) return 'plano';
+  return 'outro';
+}

@@ -12,7 +12,8 @@ type Celula = { v: unknown; f: string };
 
 class Aba {
   grade: Celula[][] = [];
-  merges: string[] = [];
+  /** Mesclas como [linha, coluna, nº de linhas, nº de colunas]. */
+  merges: [number, number, number, number][] = [];
   constructor(public nome: string, public id: number) {}
   cel(r: number, c: number): Celula {
     while (this.grade.length < r) this.grade.push([]);
@@ -33,7 +34,14 @@ class Aba {
   }
   getMaxRows() { return Math.max(this.grade.length, 100); }
   getMaxColumns() { return Math.max(...this.grade.map((l) => l.length), 26); }
-  insertColumnAfter(c: number) { this.grade.forEach((l) => { while (l.length < c) l.push({ v: '', f: '' }); l.splice(c, 0, { v: '', f: '' }); }); }
+  insertColumnAfter(c: number) {
+    // Como no Google: não dá para inserir coluna no meio de uma mescla.
+    if (this.merges.some((m) => m[1] <= c && c < m[1] + m[3] - 1)) {
+      throw new Error('É necessário selecionar todas as células em um intervalo para mesclá-las ou separá-las.');
+    }
+    this.merges = this.merges.map((m) => (m[1] > c ? [m[0], m[1] + 1, m[2], m[3]] : m));
+    this.grade.forEach((l) => { while (l.length < c) l.push({ v: '', f: '' }); l.splice(c, 0, { v: '', f: '' }); });
+  }
   insertColumnsAfter() {}
   insertRowsAfter() {}
   setFrozenRows() {}
@@ -60,7 +68,22 @@ class Faixa {
   setValue(v: unknown) { return this.setValues([[v]]); }
   setFormulas(f: string[][]) { this.mapa((x, i, j) => { x.f = f[i][j]; x.v = ''; }); return this; }
   clearContent() { this.mapa((x) => { x.v = ''; x.f = ''; }); return this; }
-  breakApart() { this.aba.merges = []; return this; }
+  private toca(m: [number, number, number, number]) {
+    return m[0] < this.r + this.nr && this.r < m[0] + m[2] && m[1] < this.c + this.nc && this.c < m[1] + m[3];
+  }
+  private contem(m: [number, number, number, number]) {
+    return m[0] >= this.r && m[0] + m[2] <= this.r + this.nr && m[1] >= this.c && m[1] + m[3] <= this.c + this.nc;
+  }
+  // Como no Google: desfazer só um pedaço de uma mescla dá erro.
+  breakApart() {
+    if (this.aba.merges.some((m) => this.toca(m) && !this.contem(m))) {
+      throw new Error('É necessário selecionar todas as células em um intervalo para mesclá-las ou separá-las.');
+    }
+    this.aba.merges = this.aba.merges.filter((m) => !this.toca(m));
+    return this;
+  }
+  isPartOfMerge() { return this.aba.merges.some((m) => this.toca(m)); }
+  getMergedRanges() { return this.aba.merges.filter((m) => this.toca(m)).map((m) => new Faixa(this.aba, ...m)); }
   setNumberFormat() { return this; }
   setFontWeight() { return this; }
   setBackground() { return this; }
@@ -208,6 +231,73 @@ describe('ponte com o Drive (Apps Script)', () => {
     const ss = planilhaFalsa([abaEditais()]);
     expect(ponte(ss, 'doadores')({ acao: 'escrever', planilha: 'editais', abas: [] }).erro).toContain('perfil');
     expect(ponte(ss, 'admin', {})({ acao: 'ler', planilha: 'editais', abas: [] }).erro).toContain('ainda não foi ligada');
+  });
+});
+
+describe('ponte com o Drive: mesclas antigas na planilha', () => {
+  it('desfaz mesclas que passam da área de dados (blocos por mês da planilha antiga)', () => {
+    const pj = new Aba('Parcerias e Doações PJ', 3);
+    ['Organização', 'Status da abordagem'].forEach((t, i) => { pj.cel(2, i + 2).v = t; });
+    pj.cel(3, 2).v = 'Empresa Antiga';
+    pj.cel(5, 2).v = 'Bloco de outubro';
+    // Mescla do bloco vai além da última coluna com conteúdo e além da última linha.
+    pj.merges.push([5, 2, 1, 30], [8, 2, 3, 4]);
+    const ss = planilhaFalsa([pj]);
+    const parceria = {
+      id: 'x', organizacao: 'Empresa Teste', pessoa: null, cargo: null, email: null, telefone: null, rede_social: null, contexto: null, canal: null, mensagem: null,
+      tipo: null, responsavel: null, contato_1: null, contato_2: null, contato_3: null, contato_4: null, ultimo_retorno: null, proxima_acao: null,
+      status: 'a_abordar' as const, interesse: null, observacoes: null,
+    };
+    const r = ponte(ss)({ acao: 'escrever', planilha: 'abordagem', abas: pedidoDeEscrita(exportarParcerias([parceria])) });
+    expect(r.ok, String(r.erro)).toBe(true);
+    expect(pj.merges).toEqual([]);
+    expect(pj.cel(3, 2).v).toBe('Empresa Teste');
+  });
+});
+
+describe('ponte com o Drive: coluna nova no meio de mesclas', () => {
+  it('título e faixas por mês mesclados de ponta a ponta não impedem criar a coluna', () => {
+    const pj = new Aba('Parcerias e Doações PJ', 3);
+    ['Organização', 'Pessoa de contato', 'Status da abordagem', 'Observações'].forEach((t, i) => { pj.cel(2, i + 2).v = t; });
+    pj.cel(1, 2).v = 'Plano de abordagem';
+    pj.merges.push([1, 2, 1, 20], [4, 2, 1, 20]); // título e uma faixa "NOVEMBRO" atravessando a planilha
+    pj.cel(3, 2).v = 'Empresa Antiga';
+    const ss = planilhaFalsa([pj]);
+    const exp = exportarParcerias([{
+      id: 'pa1', organizacao: 'Empresa Teste', pessoa: null, cargo: null, email: null, telefone: null, rede_social: null, contexto: null, canal: null,
+      mensagem: null, tipo: null, responsavel: null, contato_1: null, contato_2: null, contato_3: null, contato_4: null, ultimo_retorno: null,
+      proxima_acao: null, status: 'reuniao_marcada', interesse: 'morno', observacoes: null,
+    }]);
+    const r = ponte(ss)({ acao: 'escrever', planilha: 'abordagem', abas: pedidoDeEscrita(exp) });
+    expect(r.ok, r.erro).toBe(true);
+    expect([pj.cel(2, 4).v, pj.cel(2, 5).v, pj.cel(2, 6).v]).toEqual(['Status da abordagem', 'Interesse', 'Etapa do funil']);
+    expect(pj.cel(3, 2).v).toBe('Empresa Teste');
+  });
+
+  it('se ainda assim der erro, diz a aba e a etapa', () => {
+    const pj = new Aba('Parcerias e Doações PJ', 3);
+    ['Organização', 'Status da abordagem'].forEach((t, i) => { pj.cel(2, i + 2).v = t; });
+    pj.insertColumnAfter = () => { throw new Error('falha de teste'); };
+    const exp = exportarParcerias([]);
+    const r = ponte(planilhaFalsa([pj]))({ acao: 'escrever', planilha: 'abordagem', abas: pedidoDeEscrita(exp) });
+    expect(r.ok).toBe(false);
+    expect(r.erro).toMatch(/Aba "Parcerias e Doações PJ" \(criando a coluna .+\): falha de teste/);
+  });
+});
+
+describe('ponte com o Drive: mesclas numa aba ainda vazia', () => {
+  it('aba Inadimplentes sem dados mas com blocos mesclados do modelo antigo', () => {
+    const ina = new Aba('Inadimplentes', 4);
+    ['Nome', 'Mês'].forEach((t, i) => { ina.cel(2, i + 2).v = t; });
+    ina.merges.push([3, 3, 6, 1], [10, 2, 2, 5]); // blocos por mês, sem texto
+    const ss = planilhaFalsa([ina]);
+    const r = ponte(ss, 'doadores', { drive_planilha_abordagem: 'PLANILHA_TESTE_1234567890' })({
+      acao: 'escrever', planilha: 'abordagem',
+      abas: [{ aba: 'Inadimplentes', colunas: [{ titulo: 'Nome' }, { titulo: 'Mês' }], linhas: [['Pessoa Teste', 'out/2026'], ['Outra Pessoa', 'set/2026']] }],
+    });
+    expect(r.ok, String(r.erro)).toBe(true);
+    expect(ina.merges).toEqual([]);
+    expect([ina.cel(4, 2).v, ina.cel(4, 3).v]).toEqual(['Outra Pessoa', 'set/2026']);
   });
 });
 
