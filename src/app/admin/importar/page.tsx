@@ -4,20 +4,32 @@ import { useState } from 'react';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import Tela from '@/components/Tela';
 import { useMembro } from '@/lib/membro';
-import { decodificar, lerRelatorio, ResultadoLeitura, separarDoacoes, TipoRelatorio } from '@/lib/relatorios';
+import { avisosDoPeriodo, decodificar, lerRelatorio, ResultadoLeitura, separarDoacoes, TipoRelatorio } from '@/lib/relatorios';
+import { hojeIso } from '@/lib/texto';
 import { supabase } from '@/lib/supabase/cliente';
 
 const RELATORIOS: { tipo: TipoRelatorio; titulo: string; ajuda: string }[] = [
-  { tipo: 'doacoes', titulo: 'Relatório de doações', ajuda: 'Doadores, valor, frequência e data de início. Importe primeiro.' },
-  { tipo: 'cobrancas', titulo: 'Relatório de cobranças', ajuda: 'Pagamentos mês a mês e motivo de cada falha.' },
-  { tipo: 'doadores', titulo: 'Relatório de doadores', ajuda: 'Aceite de contato por canal (e-mail, WhatsApp, cartas…).' },
+  { tipo: 'doacoes', titulo: 'Relatório de doações', ajuda: 'Doadores, valor, frequência e data de início. Importe primeiro, exportado SEM filtro de período.' },
+  { tipo: 'cobrancas', titulo: 'Relatório de cobranças', ajuda: 'Pagamentos mês a mês e motivo de cada falha. Exporte pelo menos os últimos 6 meses.' },
+  { tipo: 'doadores', titulo: 'Relatório de doadores', ajuda: 'Aceite de contato por canal (e-mail, WhatsApp, cartas…). Exporte sem filtro de período.' },
 ];
 
-async function enviarEmLotes(tabela: string, linhas: Record<string, unknown>[]) {
+async function enviarEmLotes(tabela: string, linhas: Record<string, unknown>[], soNovas = false) {
   for (let i = 0; i < linhas.length; i += 500) {
-    const { error } = await supabase().from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
+    const { error } = await supabase().from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id', ignoreDuplicates: soNovas });
     if (error) throw new Error(`${tabela}: ${error.message}`);
   }
+}
+
+/** IDs de doações que já estão no portal. */
+async function doacoesExistentes(ids: string[]): Promise<Set<string>> {
+  const existentes = new Set<string>();
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data, error } = await supabase().from('doacoes').select('id').in('id', ids.slice(i, i + 150));
+    if (error) throw new Error(`doacoes: ${error.message}`);
+    for (const d of data ?? []) existentes.add(d.id as string);
+  }
+  return existentes;
 }
 
 function Bloco({ tipo, titulo, ajuda }: (typeof RELATORIOS)[number]) {
@@ -40,17 +52,28 @@ function Bloco({ tipo, titulo, ajuda }: (typeof RELATORIOS)[number]) {
     setEnviando(true);
     try {
       const now = new Date().toISOString();
+      let extra = '';
       if (tipo === 'doacoes') {
         const { doadores, doacoes } = separarDoacoes(leitura.linhas);
         await enviarEmLotes('doadores', doadores.map((d) => ({ ...d, importado_em: now })));
         await enviarEmLotes('doacoes', doacoes.map((d) => ({ ...d, importado_em: now })));
+      } else if (tipo === 'cobrancas' && leitura.apoio) {
+        // Doações que não vieram no relatório de doações são criadas a partir das cobranças;
+        // as que já existem não são tocadas (o relatório de doações é mais completo).
+        const existentes = await doacoesExistentes(leitura.apoio.doacoes.map((d) => d.id as string));
+        const novas = leitura.apoio.doacoes.filter((d) => !existentes.has(d.id as string));
+        const donos = new Set(novas.map((d) => d.doador_id));
+        await enviarEmLotes('doadores', leitura.apoio.doadores.filter((d) => donos.has(d.id)).map((d) => ({ ...d, importado_em: now })));
+        await enviarEmLotes('doacoes', novas.map((d) => ({ ...d, importado_em: now })), true);
+        await enviarEmLotes('cobrancas', leitura.linhas.map((l) => ({ ...l, importado_em: now })));
+        extra = novas.length ? ` ${novas.length} doações não estavam no relatório de doações e foram criadas a partir das cobranças.` : '';
       } else {
         await enviarEmLotes(tipo, leitura.linhas.map((l) => ({ ...l, importado_em: now })));
       }
       await supabase().from('importacoes').insert({
         tipo, arquivo, linhas_lidas: leitura.linhasLidas, linhas_ok: leitura.linhas.length, erros: leitura.erros.slice(0, 200),
       });
-      setEstado({ tipo: 'ok', texto: `${leitura.linhas.length} linhas importadas.` });
+      setEstado({ tipo: 'ok', texto: `${leitura.linhas.length} linhas importadas.${extra}` });
       setLeitura(null);
     } catch (e) {
       setEstado({ tipo: 'erro', texto: (e as Error).message });
@@ -77,6 +100,7 @@ function Bloco({ tipo, titulo, ajuda }: (typeof RELATORIOS)[number]) {
             descartadas (documento, endereço, banco, UTMs…).
             {leitura.erros.length > 0 && ` ${leitura.erros.length} linhas sem ID ficam de fora (primeira: linha ${leitura.erros[0].linha}).`}
           </p>
+          {avisosDoPeriodo(leitura, hojeIso()).map((a) => <p key={a} className="aviso erro" style={{ margin: 0 }}>{a}</p>)}
           <button type="button" className="botao" style={{ alignSelf: 'flex-start' }} onClick={importar} disabled={enviando || !leitura.linhas.length}>
             {enviando ? 'Importando…' : 'Importar'}
           </button>

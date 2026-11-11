@@ -41,7 +41,9 @@ export function numero(v: unknown): number | null {
   if (vazio(v)) return null;
   if (typeof v === 'number') return v;
   let s = String(v).replace(/R\$|\s/g, '');
-  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  // Com vírgula e ponto, o último é o decimal: "1.234,56" (BR) e "1,234.56" (relatório de doações da Trackmob).
+  if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  else if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }

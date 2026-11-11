@@ -1,6 +1,6 @@
 // Testes com dados inventados (nenhum dado real de doador).
 import { describe, expect, it } from 'vitest';
-import { lerRelatorio, separarDoacoes } from './relatorios';
+import { avisosDoPeriodo, lerRelatorio, separarDoacoes } from './relatorios';
 import { brindeDevido, Cobranca, Doacao, doacaoPrincipal, motivoFalha, pontoDoPlano, situacao } from './situacao';
 import { linkWhatsApp, preencherModelo, telefoneInternacional, vcard } from './contato';
 import { booleano, data, mesesEntre, numero } from './texto';
@@ -136,5 +136,55 @@ describe('contato', () => {
   });
   it('gera o arquivo de contato', () => {
     expect(vcard({ nome: 'Ana; Teste', celular: '12999990000', email: null })).toContain('FN:Ana\\; Teste');
+  });
+});
+
+// Casos do primeiro relatório real (11/11/2026), reproduzidos com dados inventados.
+describe('relatórios exportados com filtro de data', () => {
+  const cab =
+    'Nome do doador;E-mail;Celular;Documento;Rua;Frequência da doação;Método de pagamento;Status da doação;Data de criação da doação;Campanha (doação);UTM source;' +
+    'Data de vencimento;Competência;Data de pagamento;Status da cobrança;Mensagem de erro;Valor da cobrança;Valor de pagamento;ID do doador;ID da doação;ID da cobrança';
+  const linha = (doacao: string, venc: string, comp: string, pago: string, status: string, valor = '50,00') =>
+    `Pessoa Teste ${doacao};teste${doacao}@exemplo.org;11999990000;00000000000;Rua Teste;Mensal;Cartão de crédito;Ativa;15/03/2025 10:00:00;Campanha Teste;utm;` +
+    `${venc};${comp};${pago};${status};;${valor};${pago ? valor : ''};P${doacao};D${doacao};C${doacao}${comp.replace('/', '')}`;
+  const csv = [
+    cab,
+    linha('1', '10/09/2026', '09/2026', '10/09/2026 08:00:00', 'Pago'),
+    linha('1', '10/10/2026', '10/2026', '', 'Falha grave'),
+    linha('1', '10/11/2026', '11/2026', '', 'Vencido', '60,00'),
+    linha('2', '05/11/2026', '11/2026', '05/11/2026 09:00:00', 'Pago'),
+  ].join('\n');
+
+  it('o relatório de cobranças completa as doações que faltam, sem dados sensíveis', () => {
+    const r = lerRelatorio('cobrancas', csv);
+    expect(r.linhas).toHaveLength(4);
+    expect(r.periodo).toEqual({ de: '2026-09-10', ate: '2026-11-10' });
+    const d1 = r.apoio!.doacoes.find((d) => d.id === 'D1')!;
+    expect(d1).toMatchObject({ doador_id: 'P1', frequencia: 'Mensal', status: 'Ativa', valor: 60, ultima_cobranca_paga: '2026-09-10', criada_em: '2025-03-15' });
+    expect(r.apoio!.doadores.find((d) => d.id === 'P1')).toEqual({ id: 'P1', nome: 'Pessoa Teste 1', email: 'teste1@exemplo.org', celular: '11999990000' });
+    expect(JSON.stringify(r)).not.toMatch(/00000000000|Rua Teste|utm/);
+    // Com a doação montada, os dois meses sem pagamento aparecem.
+    expect(situacao(d1 as unknown as Doacao, r.linhas as unknown as Cobranca[], '2026-11-20')).toBe('atraso_2');
+  });
+
+  it('avisa quando o arquivo parece filtrado por data', () => {
+    expect(avisosDoPeriodo(lerRelatorio('cobrancas', csv), '2026-11-11')[0]).toMatch(/últimos 6 meses/);
+    const doacoes = 'ID do doador,ID da doação,Frequência,Data de criação da doação\nP1,D1,Mensal,"1/9/2026, 10:00"\nP2,D2,Única,"30/10/2026, 21:13"';
+    expect(avisosDoPeriodo(lerRelatorio('doacoes', doacoes), '2026-11-11')[0]).toMatch(/Todas as doações deste arquivo foram criadas a partir de 01\/09\/2026/);
+    const antigas = 'ID do doador,ID da doação,Frequência,Data de criação da doação\nP1,D1,Mensal,"1/9/2023, 10:00"';
+    expect(avisosDoPeriodo(lerRelatorio('doacoes', antigas), '2026-11-11')).toEqual([]);
+  });
+
+  it('doação única finalizada é pontual (concluída), não cancelada', () => {
+    const base = { id: 'D9', doador_id: 'P9', valor: 60, meio_pagamento: 'Pix', status_ultima_cobranca: 'Paga', ultima_cobranca_paga: null, criada_em: '2026-10-30', campanha: null };
+    expect(situacao({ ...base, frequencia: 'Única', status: 'Finalizada', finalizada_em: '2026-10-30' }, [], '2026-11-11')).toBe('pontual');
+    expect(situacao({ ...base, frequencia: 'Única', status: 'Cancelada', finalizada_em: null }, [], '2026-11-11')).toBe('cancelado');
+    expect(situacao({ ...base, frequencia: 'Mensal', status: 'Finalizada', finalizada_em: '2026-10-30' }, [], '2026-11-11')).toBe('cancelado');
+  });
+
+  it('valor em formato americano do relatório de doações', () => {
+    expect(numero('1,500.00')).toBe(1500);
+    expect(numero('60.00')).toBe(60);
+    expect(numero('1.500,00')).toBe(1500);
   });
 });

@@ -146,8 +146,9 @@ export function inicioDoAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: stri
 
 export function situacao(doacao: Doacao | null, cobrancas: Cobranca[], hoje: string): Situacao {
   if (!doacao) return 'sem_dados';
+  // Doação única "Finalizada" é doação concluída (paga), não cancelamento.
+  if (ehPontual(doacao)) return /cancel/.test(normalizarTitulo(doacao.status ?? '')) ? 'cancelado' : 'pontual';
   if (ehCancelada(doacao)) return 'cancelado';
-  if (ehPontual(doacao)) return 'pontual';
   const n = mesesEmAtraso(doacao, cobrancas, hoje);
   if (n === null) return 'sem_dados';
   if (n === 0) return 'em_dia';

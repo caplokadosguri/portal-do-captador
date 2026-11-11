@@ -56,6 +56,27 @@ export const COLUNAS: Record<TipoRelatorio, Coluna[]> = {
   ],
 };
 
+// O relatório de cobranças também traz dados da doação e do doador. Eles servem para
+// completar doações que não vieram no relatório de doações (exportado com filtro de data,
+// por exemplo). Mesma regra: só estas colunas; documento, endereço e cartão ficam de fora.
+const APOIO_COBRANCAS: Coluna[] = [
+  { titulo: 'Nome do doador', campo: 'nome', converter: texto },
+  { titulo: 'E-mail', campo: 'email', converter: texto },
+  { titulo: 'Celular', campo: 'celular', converter: texto },
+  { titulo: 'Frequência da doação', campo: 'frequencia', converter: texto },
+  { titulo: 'Método de pagamento', campo: 'meio_pagamento', converter: texto },
+  { titulo: 'Status da doação', campo: 'status', converter: texto },
+  { titulo: 'Data de criação da doação', campo: 'criada_em', converter: data },
+  { titulo: 'Campanha (doação)', campo: 'campanha', converter: texto },
+];
+
+// Só para conferir o período do arquivo (não vai para o banco).
+const DATA_DO_PERIODO: Partial<Record<TipoRelatorio, string>> = {
+  doacoes: 'Data de criação da doação',
+  cobrancas: 'Data de vencimento',
+  doadores: 'Data de criação do doador',
+};
+
 export interface ResultadoLeitura {
   tipo: TipoRelatorio;
   linhas: Record<string, unknown>[];
@@ -63,6 +84,10 @@ export interface ResultadoLeitura {
   colunasFaltando: string[];
   colunasDescartadas: number;
   erros: { linha: number; motivo: string }[];
+  /** Menor e maior data do arquivo (criação para doações e doadores, vencimento para cobranças). */
+  periodo: { de: string; ate: string } | null;
+  /** Só no relatório de cobranças: doadores e doações montados a partir das cobranças. */
+  apoio?: { doadores: Record<string, unknown>[]; doacoes: Record<string, unknown>[] };
 }
 
 /** Lê o texto de um CSV (vírgula ou ponto e vírgula) e aplica a lista fechada de colunas. */
@@ -81,10 +106,15 @@ export function lerRelatorio(tipo: TipoRelatorio, csv: string): ResultadoLeitura
     linhas: [],
     linhasLidas: dados.length,
     colunasFaltando,
-    colunasDescartadas: Math.max(0, cabecalho.length - usadas.length),
+    colunasDescartadas: 0,
     erros: [],
+    periodo: null,
   };
   if (colunasFaltando.length) return resultado;
+  const apoioUsadas = tipo === 'cobrancas' ? APOIO_COBRANCAS.filter((c) => indice.has(normalizarTitulo(c.titulo))) : [];
+  resultado.colunasDescartadas = Math.max(0, cabecalho.length - usadas.length - apoioUsadas.length);
+  const apoio = new Map<string, Record<string, unknown>>();
+  const colunaPeriodo = DATA_DO_PERIODO[tipo] ? indice.get(normalizarTitulo(DATA_DO_PERIODO[tipo]!)) : undefined;
 
   const chave = colunas.find((c) => c.campo === 'id')!;
   const vistos = new Set<string>();
@@ -103,8 +133,53 @@ export function lerRelatorio(tipo: TipoRelatorio, csv: string): ResultadoLeitura
     if (vistos.has(id)) return; // linha repetida no mesmo arquivo: fica a primeira
     vistos.add(id);
     resultado.linhas.push(linha);
+    if (colunaPeriodo !== undefined) {
+      const d = data(celulas[colunaPeriodo]);
+      if (d) resultado.periodo = { de: !resultado.periodo || d < resultado.periodo.de ? d : resultado.periodo.de, ate: !resultado.periodo || d > resultado.periodo.ate ? d : resultado.periodo.ate };
+    }
+    if (apoioUsadas.length && linha.doacao_id && !apoio.has(linha.doacao_id as string)) {
+      const a: Record<string, unknown> = {};
+      for (const c of apoioUsadas) a[c.campo] = c.converter(celulas[indice.get(normalizarTitulo(c.titulo))!]);
+      apoio.set(linha.doacao_id as string, a);
+    }
   });
+  if (tipo === 'cobrancas') resultado.apoio = doacoesDasCobrancas(resultado.linhas, apoio);
   return resultado;
+}
+
+/**
+ * Monta doadores e doações a partir do relatório de cobranças. O valor é o da cobrança
+ * mais recente; "última cobrança paga" é o último pagamento visto. O status da última
+ * cobrança fica em branco: a regra de atraso usa as próprias cobranças.
+ */
+export function doacoesDasCobrancas(cobrancas: Record<string, unknown>[], apoio: Map<string, Record<string, unknown>>) {
+  const porDoacao = new Map<string, Record<string, unknown>[]>();
+  for (const c of cobrancas) {
+    const id = c.doacao_id as string;
+    if (!porDoacao.has(id)) porDoacao.set(id, []);
+    porDoacao.get(id)!.push(c);
+  }
+  const doadores = new Map<string, Record<string, unknown>>();
+  const doacoes: Record<string, unknown>[] = [];
+  for (const [id, cs] of porDoacao) {
+    const a = apoio.get(id) ?? {};
+    const doadorId = cs[0].doador_id as string;
+    const recente = [...cs].sort((x, y) => String(y.vencimento ?? '').localeCompare(String(x.vencimento ?? '')))[0];
+    const pagos = cs.map((c) => c.pago_em as string | null).filter((d): d is string => !!d).sort();
+    if (!doadores.has(doadorId)) doadores.set(doadorId, { id: doadorId, nome: a.nome ?? null, email: a.email ?? null, celular: a.celular ?? null });
+    doacoes.push({
+      id,
+      doador_id: doadorId,
+      valor: recente.valor ?? null,
+      frequencia: a.frequencia ?? null,
+      meio_pagamento: a.meio_pagamento ?? null,
+      status: a.status ?? null,
+      ultima_cobranca_paga: pagos.at(-1) ?? null,
+      criada_em: a.criada_em ?? null,
+      campanha: a.campanha ?? null,
+    });
+  }
+  return { doadores: [...doadores.values()], doacoes };
 }
 
 /** Separa a leitura do relatório de doações em contatos (doadores) e doações. */
@@ -124,4 +199,26 @@ export function decodificar(bytes: ArrayBuffer): string {
   const utf8 = new TextDecoder('utf-8').decode(bytes);
   if (!utf8.includes('�')) return utf8;
   return new TextDecoder('windows-1252').decode(bytes);
+}
+
+const dataBr = (iso: string) => iso.split('-').reverse().join('/');
+
+/** Avisos sobre o período do arquivo: relatório filtrado por data deixa a carteira incompleta. */
+export function avisosDoPeriodo(l: ResultadoLeitura, hoje: string): string[] {
+  if (!l.periodo) return [];
+  const { de, ate } = l.periodo;
+  const dias = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+  const avisos: string[] = [];
+  if (l.tipo === 'cobrancas' && dias(de, ate) < 160) {
+    avisos.push(
+      `As cobranças vão de ${dataBr(de)} a ${dataBr(ate)}. Com menos de 6 meses, o portal não enxerga atrasos mais antigos; na Trackmob, exporte pelo menos os últimos 6 meses.`,
+    );
+  }
+  if ((l.tipo === 'doacoes' || l.tipo === 'doadores') && dias(de, hoje) < 180) {
+    const [todos, o, criados, antigos] = l.tipo === 'doacoes' ? ['Todas', 'as doações', 'criadas', 'as mais antigas ficam'] : ['Todos', 'os doadores', 'criados', 'os mais antigos ficam'];
+    avisos.push(
+      `${todos} ${o} deste arquivo foram ${criados} a partir de ${dataBr(de)}: o relatório parece ter saído com filtro de data. Exporte sem filtro de período (desde o início), senão ${antigos} de fora.`,
+    );
+  }
+  return avisos;
 }
