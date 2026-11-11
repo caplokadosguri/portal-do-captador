@@ -54,6 +54,10 @@ export const COLUNAS: Record<TipoRelatorio, Coluna[]> = {
   ],
   doadores: [
     { titulo: 'ID do doador', campo: 'id', converter: texto, obrigatoria: true },
+    // Nome e contato também aqui: há cadastros (leads) que não aparecem no relatório de doações.
+    { titulo: 'Nome', campo: 'nome', converter: texto },
+    { titulo: 'Email', campo: 'email', converter: texto },
+    { titulo: 'Celular', campo: 'celular', converter: texto },
     { titulo: 'Receber e-mails', campo: 'aceita_email', converter: booleano },
     { titulo: 'Receber ligações', campo: 'aceita_ligacao', converter: booleano },
     { titulo: 'Receber SMS', campo: 'aceita_sms', converter: booleano },

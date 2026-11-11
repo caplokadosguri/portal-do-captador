@@ -25,6 +25,7 @@ const COR: Record<Situacao, string> = {
   pontual: '#3192B3',
   cancelado: '#6B7F88',
   sem_dados: '#6B7F88',
+  sem_doacao: '#6B7F88',
 };
 
 const COR_FILEIRA: Record<string, string> = {

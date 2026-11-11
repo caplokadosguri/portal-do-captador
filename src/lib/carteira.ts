@@ -156,10 +156,10 @@ export function montarFileiras(c: Carteira): Fileira[] {
       (v.pontual?.convites ?? 0) < MAX_CONVITES_PONTUAL,
   );
 
-  // Aniversário nos próximos 7 dias, só de quem aceitou contato por WhatsApp ou e-mail.
+  // Aniversário nos próximos 7 dias: doadores (não cadastros sem doação) que aceitaram WhatsApp ou e-mail.
   const aniversariantes = visoes
     .map((v) => ({ v, dias: diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) }))
-    .filter(({ v, dias }) => dias !== null && dias <= 6 && v.situacao !== 'cancelado' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
+    .filter(({ v, dias }) => dias !== null && dias <= 6 && v.situacao !== 'cancelado' && v.situacao !== 'sem_doacao' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
     .sort((a, b) => a.dias! - b.dias! || nome(a.v).localeCompare(nome(b.v), 'pt-BR'))
     .map(({ v }) => v);
 

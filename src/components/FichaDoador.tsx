@@ -214,6 +214,13 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           </p>
         )}
 
+        {visao.situacao === 'sem_doacao' && (
+          <p className="aviso" role="note">
+            Cadastro na Trackmob sem nenhuma doação (lead): a pessoa se cadastrou na página de doação mas não concluiu uma doação.
+            Não entra no plano de doadores nem nos aniversariantes.
+          </p>
+        )}
+
         <section className="grade-2 pequeno">
           <div className="cartao pilha" style={{ gap: 6 }}>
             <strong>Doação</strong>

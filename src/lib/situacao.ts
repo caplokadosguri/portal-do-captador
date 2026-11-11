@@ -29,7 +29,7 @@ export interface Cobranca {
   importado_em?: string | null;
 }
 
-export type Situacao = 'em_dia' | 'atraso_1' | 'atraso_2' | 'atraso_3' | 'pontual' | 'cancelado' | 'sem_dados';
+export type Situacao = 'em_dia' | 'atraso_1' | 'atraso_2' | 'atraso_3' | 'pontual' | 'cancelado' | 'sem_dados' | 'sem_doacao';
 
 export const NOME_SITUACAO: Record<Situacao, string> = {
   em_dia: 'Em dia',
@@ -39,6 +39,7 @@ export const NOME_SITUACAO: Record<Situacao, string> = {
   pontual: 'Doação única',
   cancelado: 'Cancelado',
   sem_dados: 'Sem dados de cobrança',
+  sem_doacao: 'Cadastro sem doação',
 };
 
 export function ehPontual(d: Pick<Doacao, 'frequencia'>): boolean {
@@ -145,7 +146,8 @@ export function inicioDoAtraso(doacao: Doacao, cobrancas: Cobranca[], hoje: stri
 }
 
 export function situacao(doacao: Doacao | null, cobrancas: Cobranca[], hoje: string): Situacao {
-  if (!doacao) return 'sem_dados';
+  // Cadastrado na Trackmob (relatório de doadores) mas sem nenhuma doação: lead.
+  if (!doacao) return 'sem_doacao';
   // Doação única "Finalizada" é doação concluída (paga), não cancelamento.
   if (ehPontual(doacao)) return /cancel/.test(normalizarTitulo(doacao.status ?? '')) ? 'cancelado' : 'pontual';
   if (ehCancelada(doacao)) return 'cancelado';

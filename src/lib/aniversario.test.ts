@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { diasAteAniversario, proximoAniversario, rotuloAniversario } from './aniversario';
 import { preencherModelo } from './contato';
 import { lerRelatorio } from './relatorios';
+import { situacao } from './situacao';
 
 describe('aniversário dos doadores', () => {
   it('próximo aniversário, virada de ano e 29 de fevereiro', () => {
@@ -21,9 +22,15 @@ describe('aniversário dos doadores', () => {
       'Pessoa Teste,00000000000,2/3/1990,female,teste@exemplo.org,true,true,12200000,Rua Teste,10,Bairro Teste,Cidade Teste,SP,P1\n' +
       'Outra Pessoa,11111111111,29/2/1988,male,outra@exemplo.org,false,true,,,,,,,P2';
     const r = lerRelatorio('doadores', csv);
-    expect(r.linhas[0]).toMatchObject({ id: 'P1', nascimento_dia: 2, nascimento_mes: 3, tem_endereco: true, aceita_whatsapp: true });
+    expect(r.linhas[0]).toMatchObject({ id: 'P1', nome: 'Pessoa Teste', email: 'teste@exemplo.org', nascimento_dia: 2, nascimento_mes: 3, tem_endereco: true, aceita_whatsapp: true });
     expect(r.linhas[1]).toMatchObject({ id: 'P2', nascimento_dia: 29, nascimento_mes: 2, tem_endereco: false });
     expect(JSON.stringify(r.linhas)).not.toMatch(/1990|1988|Rua Teste|12200000|00000000000|Cidade Teste/);
+  });
+});
+
+describe('cadastros sem doação', () => {
+  it('quem está só no relatório de doadores é lead, não "sem dados de cobrança"', () => {
+    expect(situacao(null, [], '2026-11-11')).toBe('sem_doacao');
   });
 });
 
