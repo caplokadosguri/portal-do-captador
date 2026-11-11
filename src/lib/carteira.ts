@@ -6,7 +6,7 @@ import { buscarTudo, supabase } from './supabase/cliente';
 import { DIAS_CADASTRO_RECENTE, MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
 import {
   brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, inicioDoAtraso, motivoFalha, MotivoFalha,
-  mesesEmAtraso, PontoDoPlano, pontoDoPlano, Situacao, situacao,
+  mesesEmAtraso, PontoDoPlano, pontoDoPlano, pontualConcluida, Situacao, situacao,
 } from './situacao';
 import { diasAteAniversario } from './aniversario';
 import { diasEntre, hojeIso, somarMeses } from './texto';
@@ -102,7 +102,7 @@ export async function carregarCarteira(): Promise<Carteira> {
     const recorrenteAtiva = !!principal && !ehPontual(principal) && !ehCancelada(principal);
     const plano = recorrenteAtiva && principal!.criada_em ? pontoDoPlano(principal!.criada_em, hoje) : null;
     const devido = recorrenteAtiva && principal!.criada_em ? brindeDevido(principal!.criada_em, hoje) : null;
-    const pontuais = dd.filter(ehPontual);
+    const pontuais = dd.filter(pontualConcluida);
     return {
       doador,
       doacoes: dd,
@@ -152,7 +152,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
       ? somarMeses(v.principal.criada_em, v.plano.atual.meses)
       : v.plano?.dataProximo;
   const ultimaPontual = (v: VisaoDoador) =>
-    v.doacoes.filter(ehPontual).map((d) => d.criada_em).filter((d): d is string => !!d).sort().at(-1) ?? null;
+    v.doacoes.filter(pontualConcluida).map((d) => d.criada_em).filter((d): d is string => !!d).sort().at(-1) ?? null;
 
   const atencao = visoes.filter(
     (v) =>

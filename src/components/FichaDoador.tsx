@@ -214,7 +214,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
 
         {visao.situacao === 'sem_doacao' && (
           <p className="aviso" role="note">
-            Cadastro na Trackmob sem nenhuma doação (lead): a pessoa se cadastrou na página de doação mas não concluiu uma doação.
+            Sem doação concluída: a pessoa se cadastrou na página de doação mas não concluiu (ou deixou um Pix ou boleto sem pagar).
             Não entra no plano de doadores nem nos aniversariantes; aparece em “Cadastros para converter” se aceitou contato.
             Quando não for mais convidar, marque “Resolvido” no acompanhamento.
           </p>

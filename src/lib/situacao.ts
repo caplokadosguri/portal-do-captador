@@ -39,11 +39,22 @@ export const NOME_SITUACAO: Record<Situacao, string> = {
   pontual: 'Doação única',
   cancelado: 'Cancelado',
   sem_dados: 'Sem dados de cobrança',
-  sem_doacao: 'Cadastro sem doação',
+  sem_doacao: 'Sem doação concluída',
 };
 
 export function ehPontual(d: Pick<Doacao, 'frequencia'>): boolean {
   return /unica|pontual|avulsa/.test(normalizarTitulo(d.frequencia ?? ''));
+}
+
+/**
+ * Doação única que chegou a ser paga. Na Trackmob, "Inativa"/"Pendente" sem pagamento
+ * é Pix ou boleto que não foi pago: não é doação (a pessoa fica como cadastro sem doação).
+ */
+export function pontualConcluida(d: Pick<Doacao, 'frequencia' | 'status' | 'ultima_cobranca_paga' | 'status_ultima_cobranca'>): boolean {
+  if (!ehPontual(d)) return false;
+  const paga = !!d.ultima_cobranca_paga || /pag/.test(normalizarTitulo(d.status_ultima_cobranca ?? ''));
+  // Na dúvida (status desconhecido), conta como doação.
+  return paga || !/inativ|pendent|cancel|expir|recus/.test(normalizarTitulo(d.status ?? ''));
 }
 
 export function ehCancelada(d: Pick<Doacao, 'status' | 'finalizada_em'>): boolean {
@@ -62,7 +73,14 @@ export function cobrancaPaga(c: Pick<Cobranca, 'pago_em' | 'status'>): boolean {
  */
 export function doacaoPrincipal(doacoes: Doacao[]): Doacao | null {
   const ordenadas = [...doacoes].sort((a, b) => (b.criada_em ?? '').localeCompare(a.criada_em ?? ''));
-  return ordenadas.find((d) => !ehPontual(d) && !ehCancelada(d)) ?? ordenadas[0] ?? null;
+  return (
+    ordenadas.find((d) => !ehPontual(d) && !ehCancelada(d)) ??
+    // Depois, a mais recente que existiu de fato (recorrente encerrada ou única paga)...
+    ordenadas.find((d) => !ehPontual(d) || pontualConcluida(d)) ??
+    // ...e só então uma única não paga.
+    ordenadas[0] ??
+    null
+  );
 }
 
 /**
@@ -149,7 +167,10 @@ export function situacao(doacao: Doacao | null, cobrancas: Cobranca[], hoje: str
   // Cadastrado na Trackmob (relatório de doadores) mas sem nenhuma doação: lead.
   if (!doacao) return 'sem_doacao';
   // Doação única "Finalizada" é doação concluída (paga), não cancelamento.
-  if (ehPontual(doacao)) return /cancel/.test(normalizarTitulo(doacao.status ?? '')) ? 'cancelado' : 'pontual';
+  if (ehPontual(doacao)) {
+    if (!pontualConcluida(doacao)) return 'sem_doacao';
+    return /cancel/.test(normalizarTitulo(doacao.status ?? '')) ? 'cancelado' : 'pontual';
+  }
   if (ehCancelada(doacao)) return 'cancelado';
   const n = mesesEmAtraso(doacao, cobrancas, hoje);
   if (n === null) return 'sem_dados';

@@ -96,3 +96,16 @@ describe('ordem por data nas fileiras e tipos de contato', () => {
     expect(motivoDoModelo('lead_convite')).toBe('lead');
   });
 });
+
+describe('doação única não paga', () => {
+  it('Pix ou boleto "Inativa"/"Pendente" sem pagamento não é doação pontual', async () => {
+    const { situacao, doacaoPrincipal } = await import('./situacao');
+    const base = { doador_id: 'P1', valor: 50, meio_pagamento: 'Pix', status_ultima_cobranca: null, finalizada_em: null, campanha: null, frequencia: 'Única' };
+    const naoPaga = { ...base, id: 'D2', status: 'Inativa', ultima_cobranca_paga: null, criada_em: '2026-06-01' };
+    const paga = { ...base, id: 'D1', status: 'Finalizada', ultima_cobranca_paga: '2025-03-01', criada_em: '2025-03-01' };
+    expect(situacao(naoPaga, [], '2026-11-11')).toBe('sem_doacao');
+    expect(situacao({ ...naoPaga, status: 'Pendente' }, [], '2026-11-11')).toBe('sem_doacao');
+    expect(doacaoPrincipal([naoPaga, paga])!.id).toBe('D1');
+    expect(situacao(doacaoPrincipal([naoPaga, paga]), [], '2026-11-11')).toBe('pontual');
+  });
+});
