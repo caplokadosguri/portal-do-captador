@@ -135,7 +135,7 @@ describe('contato', () => {
     expect(preencherModelo('Oi, {nome}! {valor} há {meses} meses', { nome: 'Ana Teste', valor: 50, meses: 6 })).toBe('Oi, Ana! R$ 50,00 há 6 meses');
   });
   it('gera o arquivo de contato', () => {
-    expect(vcard({ nome: 'Ana; Teste', celular: '12999990000', email: null })).toContain('FN:Ana\\; Teste');
+    expect(vcard({ nome: 'Ana; Teste', celular: '12999990000', email: null })).toContain('FN:Ana\\; Teste - Doador');
   });
 });
 

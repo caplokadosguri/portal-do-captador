@@ -49,7 +49,9 @@ export function vcard(d: { nome: string | null; celular: string | null; email: s
   const linhas = [
     'BEGIN:VCARD',
     'VERSION:3.0',
-    `FN:${escaparVcf(d.nome ?? 'Doador CASD')}`,
+    // Salvo na agenda como "Nome - Doador", para reconhecer no WhatsApp.
+    `N:;${escaparVcf(`${(d.nome ?? '').trim() || 'Doador CASD'} - Doador`)};;;`,
+    `FN:${escaparVcf(`${(d.nome ?? '').trim() || 'Doador CASD'} - Doador`)}`,
     tel ? `TEL;TYPE=CELL:+${tel}` : null,
     d.email ? `EMAIL:${escaparVcf(d.email)}` : null,
     'NOTE:Doador CASD',
