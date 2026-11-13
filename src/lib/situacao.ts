@@ -1,6 +1,6 @@
 // Regras de negócio calculadas a partir dos dados da Trackmob.
 
-import { CHECKPOINTS, Checkpoint, DIAS_DE_TOLERANCIA, INICIO_DO_PLANO, INTERVALO_DEPOIS } from './plano';
+import { CHECKPOINTS, Checkpoint, DIAS_DE_TOLERANCIA, DIAS_MARCO_ATRASADO, DIAS_MARCO_PROXIMO, INICIO_DO_PLANO, INTERVALO_DEPOIS } from './plano';
 import { diasEntre, mesesEntre, normalizarTitulo, somarMeses } from './texto';
 
 export interface Doacao {
@@ -225,6 +225,31 @@ export function pontoDoPlano(criadaEm: string, hoje: string): PontoDoPlano {
     dataProximo: somarMeses(criadaEm, proximo.meses),
     mesesDeDoacao,
   };
+}
+
+export interface MarcoDoPlano {
+  checkpoint: Checkpoint;
+  /** Data do marco. */
+  data: string;
+  /** Dias até o marco: negativo = atrasado, 0 = hoje. */
+  dias: number;
+}
+
+/**
+ * O marco que pede ação agora: o já alcançado (hoje ou atrasado até DIAS_MARCO_ATRASADO
+ * dias) sem mensagem do plano desde a data dele; senão, o próximo se chega em até
+ * DIAS_MARCO_PROXIMO dias. No dia do marco, ele é o "atual" do plano (por isso sumia).
+ */
+export function marcoDoPlano(criadaEm: string, hoje: string, ultimaMensagemDoPlano: string | null): MarcoDoPlano | null {
+  const { atual, proximo, dataProximo } = pontoDoPlano(criadaEm, hoje);
+  if (atual) {
+    const data = somarMeses(criadaEm, atual.meses);
+    const enviada = !!ultimaMensagemDoPlano && ultimaMensagemDoPlano.slice(0, 10) >= data;
+    const dias = diasEntre(hoje, data);
+    if (!enviada && -dias <= DIAS_MARCO_ATRASADO) return { checkpoint: atual, data, dias };
+  }
+  const dias = diasEntre(hoje, dataProximo);
+  return dias <= DIAS_MARCO_PROXIMO ? { checkpoint: proximo, data: dataProximo, dias } : null;
 }
 
 /** Checkpoint atual gera brinde? Não para os alcançados antes do lançamento do plano. */

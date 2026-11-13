@@ -75,8 +75,9 @@ describe('ordem por data nas fileiras e tipos de contato', () => {
     const visoes = [
       base('A', { situacao: 'atraso_1', atrasoDesde: '2026-10-20' }),
       base('B', { situacao: 'atraso_1', atrasoDesde: '2026-10-05' }),
-      base('C', { situacao: 'em_dia', plano: plano('2026-11-16') }),
-      base('D', { situacao: 'em_dia', plano: plano('2026-11-12') }),
+      base('C', { situacao: 'em_dia', plano: plano('2026-11-16'), marco: { checkpoint: { chave: 'meses_6', nome: '6 meses' }, data: '2026-11-16', dias: 5 } }),
+      base('D', { situacao: 'em_dia', plano: plano('2026-11-12'), marco: { checkpoint: { chave: 'ano_1', nome: '1 ano' }, data: '2026-11-08', dias: -3 } }),
+      base('G', { situacao: 'em_dia', plano: plano('2027-02-01'), marco: null }),
       base('E', { situacao: 'cancelado', principal: { finalizada_em: '2026-01-01' } }),
       base('F', { situacao: 'cancelado', principal: { finalizada_em: '2026-09-01' } }),
     ];
@@ -84,7 +85,7 @@ describe('ordem por data nas fileiras e tipos de contato', () => {
     const ids = (k: string) => f.find((x) => x.chave === k)!.itens.map((v) => v.doador.id);
     expect(ids('atraso_1')).toEqual(['B', 'A']);
     expect(ids('checkpoints')).toEqual(['D', 'C']);
-    expect(ids('em_dia')).toEqual(['D', 'C']);
+    expect(ids('em_dia')).toEqual(['D', 'C', 'G']);
     expect(ids('cancelado')).toEqual(['F', 'E']);
   });
 
@@ -107,5 +108,22 @@ describe('doação única não paga', () => {
     expect(situacao({ ...naoPaga, status: 'Pendente' }, [], '2026-11-11')).toBe('sem_doacao');
     expect(doacaoPrincipal([naoPaga, paga])!.id).toBe('D1');
     expect(situacao(doacaoPrincipal([naoPaga, paga]), [], '2026-11-11')).toBe('pontual');
+  });
+});
+
+describe('marco do plano no dia e atrasado', () => {
+  it('no dia do marco ele aparece como hoje; depois, atrasado até a mensagem ser enviada', async () => {
+    const { marcoDoPlano } = await import('./situacao');
+    // Doação criada em 13/05/2026: marco de 6 meses em 13/11/2026.
+    expect(marcoDoPlano('2026-05-13', '2026-11-13', null)).toMatchObject({ checkpoint: { chave: 'meses_6' }, dias: 0 });
+    expect(marcoDoPlano('2026-05-13', '2026-11-20', null)).toMatchObject({ checkpoint: { chave: 'meses_6' }, dias: -7 });
+    // Mensagem do plano enviada no dia: sai; o próximo marco (1 ano) ainda está longe.
+    expect(marcoDoPlano('2026-05-13', '2026-11-20', '2026-11-13T15:00:00Z')).toBeNull();
+    // Mais de 30 dias de atraso: sai da fileira.
+    expect(marcoDoPlano('2026-05-13', '2026-12-20', null)).toBeNull();
+    // Chegando em 5 dias.
+    expect(marcoDoPlano('2026-05-13', '2026-11-08', '2026-01-01')).toMatchObject({ checkpoint: { chave: 'meses_6' }, dias: 5 });
+    // Doação nova: boas-vindas no próprio dia.
+    expect(marcoDoPlano('2026-11-13', '2026-11-13', null)).toMatchObject({ checkpoint: { chave: 'inicio' }, dias: 0 });
   });
 });

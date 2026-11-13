@@ -87,7 +87,7 @@ describe('plano de abordagem', () => {
     doacoes: [], principal: { id: 'x' + id, doador_id: id, valor: 50, frequencia: 'Mensal', meio_pagamento: 'Cartão de crédito', status: 'Ativa', status_ultima_cobranca: 'Recusada', ultima_cobranca_paga: null, criada_em: '2026-01-10', finalizada_em: null, campanha: null },
     cobrancas: [], situacao, mesesAtraso: situacao === 'em_dia' ? 0 : situacao === 'atraso_2' ? 2 : 1,
     atrasoDesde: situacao === 'atraso_2' ? '2026-09-05' : situacao === 'atraso_1' ? '2026-10-05' : null, falha: { motivo: 'atualizar_cartao', mensagem: 'Cartão vencido' },
-    plano: null, brindeDevido: null, brinde: null, rel: { doador_id: id, responsavel: 'membro@casd.test', proximo_contato: '2026-11-10', status_conversa: 'aguardando_resposta', anotacoes: 'Pediu para ligar à noite' },
+    plano: null, marco: null, brindeDevido: null, brinde: null, rel: { doador_id: id, responsavel: 'membro@casd.test', proximo_contato: '2026-11-10', status_conversa: 'aguardando_resposta', anotacoes: 'Pediu para ligar à noite' },
     pontual: null, virouMensal: false, valorAlto: false,
   });
 

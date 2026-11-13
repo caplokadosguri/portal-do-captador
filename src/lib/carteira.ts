@@ -6,7 +6,7 @@ import { buscarTudo, supabase } from './supabase/cliente';
 import { DIAS_CADASTRO_RECENTE, MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
 import {
   brindeDevido, Cobranca, Doacao, doacaoPrincipal, ehCancelada, ehPontual, inicioDoAtraso, motivoFalha, MotivoFalha,
-  mesesEmAtraso, PontoDoPlano, pontoDoPlano, pontualConcluida, Situacao, situacao,
+  marcoDoPlano, MarcoDoPlano, mesesEmAtraso, PontoDoPlano, pontoDoPlano, pontualConcluida, Situacao, situacao,
 } from './situacao';
 import { diasAteAniversario } from './aniversario';
 import { diasEntre, hojeIso, somarMeses } from './texto';
@@ -54,6 +54,8 @@ export interface VisaoDoador {
   atrasoDesde: string | null;
   falha: { motivo: MotivoFalha; mensagem: string | null } | null;
   plano: PontoDoPlano | null;
+  /** Marco do plano que pede ação: atrasado, hoje ou nos próximos dias. */
+  marco: MarcoDoPlano | null;
   brindeDevido: { chave: string; nome: string } | null;
   brinde: Brinde | null;
   rel: Relacionamento | null;
@@ -74,7 +76,7 @@ export async function carregarCarteira(): Promise<Carteira> {
   const sb = supabase();
   const hoje = hojeIso();
   const desde = somarMeses(hoje, -14);
-  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos] = await Promise.all([
+  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos, mensagensDoPlano] = await Promise.all([
     buscarTudo<Doador>((a, b) => sb.from('doadores').select('*').order('id').range(a, b)),
     buscarTudo<Doacao>((a, b) => sb.from('doacoes').select('*').order('id').range(a, b)),
     buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,competencia,vencimento,pago_em,status,mensagem_erro,importado_em').gte('vencimento', desde).order('id').range(a, b)),
@@ -82,7 +84,12 @@ export async function carregarCarteira(): Promise<Carteira> {
     buscarTudo<Brinde>((a, b) => sb.from('brindes').select('*').order('id').range(a, b)),
     buscarTudo<Pontual>((a, b) => sb.from('trilha_pontual').select('*').order('doador_id').range(a, b)),
     buscarTudo<Modelo>((a, b) => sb.from('modelos_mensagem').select('*').order('ordem').order('chave').range(a, b)),
+    // Mensagens do plano recentes: marco com mensagem enviada sai da fileira de checkpoints.
+    buscarTudo<{ doador_id: string; criado_em: string }>((a, b) =>
+      sb.from('contatos').select('doador_id,criado_em').eq('motivo', 'plano').gte('criado_em', somarMeses(hoje, -3)).order('criado_em').range(a, b)),
   ]);
+  const ultimaDoPlano = new Map<string, string>();
+  for (const m of mensagensDoPlano) ultimaDoPlano.set(m.doador_id, m.criado_em); // em ordem: fica a mais recente
 
   const porDoador = <T extends { doador_id: string | null }>(lista: T[]) => {
     const m = new Map<string, T[]>();
@@ -102,6 +109,7 @@ export async function carregarCarteira(): Promise<Carteira> {
     const recorrenteAtiva = !!principal && !ehPontual(principal) && !ehCancelada(principal);
     const plano = recorrenteAtiva && principal!.criada_em ? pontoDoPlano(principal!.criada_em, hoje) : null;
     const devido = recorrenteAtiva && principal!.criada_em ? brindeDevido(principal!.criada_em, hoje) : null;
+    const marco = recorrenteAtiva && principal!.criada_em ? marcoDoPlano(principal!.criada_em, hoje, ultimaDoPlano.get(doador.id) ?? null) : null;
     const pontuais = dd.filter(pontualConcluida);
     return {
       doador,
@@ -113,6 +121,7 @@ export async function carregarCarteira(): Promise<Carteira> {
       atrasoDesde: principal && sit.startsWith('atraso') ? inicioDoAtraso(principal, cc, hoje) : null,
       falha: principal && sit.startsWith('atraso') ? motivoFalha(cc, principal.id) : null,
       plano,
+      marco,
       brindeDevido: devido ? { chave: devido.chave, nome: devido.nome } : null,
       brinde: devido ? brindes.find((b) => b.doador_id === doador.id && b.checkpoint === devido.chave) ?? null : null,
       rel: relDe.get(doador.id) ?? null,
@@ -148,9 +157,10 @@ export function montarFileiras(c: Carteira): Fileira[] {
     });
   /** Data do marco do plano: o já alcançado com brinde pendente, senão o próximo. */
   const dataDoMarco = (v: VisaoDoador) =>
-    v.brindeDevido && v.brinde?.status !== 'entregue' && v.plano?.atual && v.principal?.criada_em
+    v.marco?.data ??
+    (v.brindeDevido && v.brinde?.status !== 'entregue' && v.plano?.atual && v.principal?.criada_em
       ? somarMeses(v.principal.criada_em, v.plano.atual.meses)
-      : v.plano?.dataProximo;
+      : v.plano?.dataProximo);
   const ultimaPontual = (v: VisaoDoador) =>
     v.doacoes.filter(pontualConcluida).map((d) => d.criada_em).filter((d): d is string => !!d).sort().at(-1) ?? null;
 
@@ -161,10 +171,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
       v.rel?.status_conversa === 'contato_humano',
   );
   const checkpoints = visoes.filter(
-    (v) =>
-      v.situacao === 'em_dia' &&
-      ((v.brindeDevido && (!v.brinde || v.brinde.status !== 'entregue')) ||
-        (v.plano && diasEntre(hoje, v.plano.dataProximo) <= 7)),
+    (v) => v.situacao === 'em_dia' && (!!v.marco || (v.brindeDevido && (!v.brinde || v.brinde.status !== 'entregue'))),
   );
   const pontuais = visoes.filter(
     (v) =>
@@ -196,7 +203,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
     { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: porData(visoes.filter((v) => v.situacao === 'atraso_1'), (v) => v.atrasoDesde) },
     { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: porData(visoes.filter((v) => v.situacao === 'atraso_2'), (v) => v.atrasoDesde) },
     { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: porData(visoes.filter((v) => v.situacao === 'atraso_3'), (v) => v.atrasoDesde) },
-    { chave: 'checkpoints', titulo: 'Checkpoints desta semana', itens: porData(checkpoints, dataDoMarco) },
+    { chave: 'checkpoints', titulo: 'Checkpoints: atrasados, de hoje e dos próximos 7 dias', itens: porData(checkpoints, dataDoMarco) },
     {
       chave: 'pontuais',
       titulo: 'Pontuais para convidar',

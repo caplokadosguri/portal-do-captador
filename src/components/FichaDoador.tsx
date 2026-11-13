@@ -40,7 +40,8 @@ function modeloSugerido(v: VisaoDoador, hoje: string): string {
   if ((diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) ?? 99) <= 6) return 'aniversario';
   if (v.situacao === 'pontual') return 'pontual_convite';
   if (v.situacao === 'sem_doacao') return 'lead_convite';
-  const marco = v.plano?.atual?.chave;
+  // O marco que pede ação (atrasado, hoje ou chegando); senão, o último alcançado.
+  const marco = v.marco?.checkpoint.chave ?? v.plano?.atual?.chave;
   if (!marco) return 'boas_vindas';
   return MODELO_DO_MARCO[marco] ?? 'semestral';
 }
@@ -66,7 +67,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     const partes = m.partes?.length ? m.partes : [{ rotulo: 'Mensagem', texto: m.texto }];
     const dados = {
       nome: doador.nome, valor: principal?.valor, meses: visao.plano?.mesesDeDoacao, membro: nomeMembro,
-      brinde: visao.brinde?.item, tempo: visao.plano?.atual?.nome,
+      brinde: visao.brinde?.item, tempo: (visao.marco?.checkpoint ?? visao.plano?.atual)?.nome,
     };
     return partes.map((p) => ({ rotulo: p.rotulo, texto: preencherModelo(p.texto, dados) }));
   };

@@ -51,6 +51,12 @@ function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'atualizar_cartao') return 'Cartão precisa ser atualizado';
   if (v.falha?.motivo === 'lembrete') return 'Falta de saldo ou limite';
   if (v.brindeDevido && v.brinde?.status !== 'entregue') return `Brinde: ${v.brindeDevido.nome}`;
+  if (v.marco) {
+    const { checkpoint: c, dias, data } = v.marco;
+    if (dias < 0) return `${c.nome} · atrasado há ${-dias} ${dias === -1 ? 'dia' : 'dias'}`;
+    if (dias === 0) return `${c.nome} · hoje`;
+    return `${c.nome} em ${formatarData(data)}`;
+  }
   if (v.plano) return `${v.plano.proximo.nome} em ${formatarData(v.plano.dataProximo)}`;
   if (v.situacao === 'sem_doacao') {
     const quando = v.doador.cadastrado_em ? `Cadastro em ${formatarData(v.doador.cadastrado_em)}` : 'Cadastro sem doação';
