@@ -104,6 +104,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!error) aoSalvar();
   }
 
+  /** Tira o lembrete do marco da fileira de checkpoints, sem registrar contato. */
+  async function dispensarMarco() {
+    if (!visao.marco) return;
+    const { error } = await supabase().from('marcos_dispensados').insert({
+      doador_id: doador.id, data_marco: visao.marco.data, checkpoint: visao.marco.checkpoint.chave,
+    });
+    resultado(error, `Lembrete de “${visao.marco.checkpoint.nome}” dispensado. Nenhum contato foi registrado.`);
+  }
+
   const podeWhatsApp = !!doador.aceita_whatsapp && !!linkWhatsApp(doador.celular, 'x');
   const proxima = partes.findIndex((_, i) => !enviadas[i]);
 
@@ -238,6 +247,17 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
               <>
                 <span>Etapa: {visao.plano.atual?.nome ?? 'Antes das boas-vindas'}</span>
                 <span>Próximo: {visao.plano.proximo.nome} em {formatarData(visao.plano.dataProximo)}</span>
+                {visao.marco && (
+                  <span className="linha" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <span>
+                      Lembrete: <strong>{visao.marco.checkpoint.nome}</strong>{' '}
+                      {visao.marco.dias < 0 ? `atrasado há ${-visao.marco.dias} ${visao.marco.dias === -1 ? 'dia' : 'dias'}` : visao.marco.dias === 0 ? 'hoje' : `em ${formatarData(visao.marco.data)}`}
+                    </span>
+                    <button type="button" className="botao-link" style={{ padding: 0 }} onClick={dispensarMarco}>
+                      Dispensar lembrete
+                    </button>
+                  </span>
+                )}
               </>
             ) : (
               <span className="suave">{visao.situacao === 'pontual' ? 'Trilha dos pontuais' : 'Fora do plano'}</span>

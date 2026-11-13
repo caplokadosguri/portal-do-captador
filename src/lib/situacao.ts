@@ -240,16 +240,22 @@ export interface MarcoDoPlano {
  * dias) sem mensagem do plano desde a data dele; senão, o próximo se chega em até
  * DIAS_MARCO_PROXIMO dias. No dia do marco, ele é o "atual" do plano (por isso sumia).
  */
-export function marcoDoPlano(criadaEm: string, hoje: string, ultimaMensagemDoPlano: string | null): MarcoDoPlano | null {
+export function marcoDoPlano(
+  criadaEm: string,
+  hoje: string,
+  ultimaMensagemDoPlano: string | null,
+  /** Datas de marcos cujo lembrete foi dispensado (sem registrar contato). */
+  dispensados: Set<string> = new Set(),
+): MarcoDoPlano | null {
   const { atual, proximo, dataProximo } = pontoDoPlano(criadaEm, hoje);
   if (atual) {
     const data = somarMeses(criadaEm, atual.meses);
     const enviada = !!ultimaMensagemDoPlano && ultimaMensagemDoPlano.slice(0, 10) >= data;
     const dias = diasEntre(hoje, data);
-    if (!enviada && -dias <= DIAS_MARCO_ATRASADO) return { checkpoint: atual, data, dias };
+    if (!enviada && !dispensados.has(data) && -dias <= DIAS_MARCO_ATRASADO) return { checkpoint: atual, data, dias };
   }
   const dias = diasEntre(hoje, dataProximo);
-  return dias <= DIAS_MARCO_PROXIMO ? { checkpoint: proximo, data: dataProximo, dias } : null;
+  return dias <= DIAS_MARCO_PROXIMO && !dispensados.has(dataProximo) ? { checkpoint: proximo, data: dataProximo, dias } : null;
 }
 
 /** Checkpoint atual gera brinde? Não para os alcançados antes do lançamento do plano. */

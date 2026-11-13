@@ -127,3 +127,14 @@ describe('marco do plano no dia e atrasado', () => {
     expect(marcoDoPlano('2026-11-13', '2026-11-13', null)).toMatchObject({ checkpoint: { chave: 'inicio' }, dias: 0 });
   });
 });
+
+describe('lembrete de marco dispensado', () => {
+  it('sai da fileira sem precisar de contato registrado', async () => {
+    const { marcoDoPlano } = await import('./situacao');
+    expect(marcoDoPlano('2026-05-13', '2026-11-13', null, new Set(['2026-11-13']))).toBeNull();
+    // Dispensar o de 6 meses não esconde o de 1 ano quando ele chegar.
+    expect(marcoDoPlano('2026-05-13', '2027-05-13', null, new Set(['2026-11-13']))).toMatchObject({ checkpoint: { chave: 'ano_1' }, dias: 0 });
+    // Lembrete de marco que ainda vai chegar também pode ser dispensado.
+    expect(marcoDoPlano('2026-05-13', '2026-11-10', null, new Set(['2026-11-13']))).toBeNull();
+  });
+});

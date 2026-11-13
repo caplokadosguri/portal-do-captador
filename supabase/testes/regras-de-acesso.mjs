@@ -13,7 +13,7 @@ grant usage on schema public to authenticated;
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on sequences to authenticated;
 `)
-for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql", "0007_resumo_e_subabas.sql", "0008_funil_e_escala.sql", "0009_aniversario_endereco_mensagens.sql", "0010_cadastros_para_converter.sql", "0011_texto_convite_cadastro.sql", "0012_tipos_de_contato.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
+for (const m of ["0001_estrutura.sql", "0002_funcoes_privadas.sql", "0003_editais.sql", "0004_modelos_casd.sql", "0005_configuracoes.sql", "0006_eventos.sql", "0007_resumo_e_subabas.sql", "0008_funil_e_escala.sql", "0009_aniversario_endereco_mensagens.sql", "0010_cadastros_para_converter.sql", "0011_texto_convite_cadastro.sql", "0012_tipos_de_contato.sql", "0013_marcos_dispensados.sql"]) await db.exec(fs.readFileSync(new URL("../migrations/" + m, import.meta.url), 'utf8'))
 await db.exec(`
 insert into membros values ('admin@casd.org','Admin','admin',true,now()),('doa@casd.org','Doa','doadores',true,now()),('edi@casd.org','Edi','editais',true,now()),('par@casd.org','Par','parceiros',true,now()),('eve@casd.org','Eve','eventos',true,now()),('ex@casd.org','Ex','doadores',false,now());
 insert into doadores (id,nome) values ('D1','Fulano');
@@ -61,6 +61,10 @@ const casos = [
   ['doa@casd.org', "update escala_sede set membro_email='edi@casd.org' returning id"],
   ['doa@casd.org', "insert into escala_sede (data) values ('2026-11-13') returning id"],
   ['estranho@x.com', 'select count(*)::int n from escala_sede'],
+  ['admin@casd.org', "insert into doadores (id, nome) values ('DTESTE', 'Pessoa Teste') on conflict do nothing returning id"],
+  ['doa@casd.org', "insert into marcos_dispensados (doador_id, data_marco, checkpoint) values ('DTESTE', '2026-11-13', 'meses_6') returning dispensado_por"],
+  ['par@casd.org', "insert into marcos_dispensados (doador_id, data_marco, checkpoint) values ('DTESTE', '2026-12-13', 'ano_1') returning doador_id"],
+  ['par@casd.org', 'select count(*)::int n from marcos_dispensados'],
   ['admin@casd.org', "insert into configuracoes (chave, valor) values ('drive_script_url','https://x') returning atualizado_por"],
   ['doa@casd.org', 'select chave from configuracoes'],
   ['doa@casd.org', "update configuracoes set valor='hack' returning chave"],

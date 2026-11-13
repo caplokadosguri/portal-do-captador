@@ -76,7 +76,7 @@ export async function carregarCarteira(): Promise<Carteira> {
   const sb = supabase();
   const hoje = hojeIso();
   const desde = somarMeses(hoje, -14);
-  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos, mensagensDoPlano] = await Promise.all([
+  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos, mensagensDoPlano, dispensas] = await Promise.all([
     buscarTudo<Doador>((a, b) => sb.from('doadores').select('*').order('id').range(a, b)),
     buscarTudo<Doacao>((a, b) => sb.from('doacoes').select('*').order('id').range(a, b)),
     buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,competencia,vencimento,pago_em,status,mensagem_erro,importado_em').gte('vencimento', desde).order('id').range(a, b)),
@@ -87,7 +87,12 @@ export async function carregarCarteira(): Promise<Carteira> {
     // Mensagens do plano recentes: marco com mensagem enviada sai da fileira de checkpoints.
     buscarTudo<{ doador_id: string; criado_em: string }>((a, b) =>
       sb.from('contatos').select('doador_id,criado_em').eq('motivo', 'plano').gte('criado_em', somarMeses(hoje, -3)).order('criado_em').range(a, b)),
+    // Lembretes de marco dispensados sem registrar contato.
+    buscarTudo<{ doador_id: string; data_marco: string }>((a, b) =>
+      sb.from('marcos_dispensados').select('doador_id,data_marco').gte('data_marco', somarMeses(hoje, -3)).order('doador_id').range(a, b)),
   ]);
+  const dispensadosDe = new Map<string, Set<string>>();
+  for (const d of dispensas) dispensadosDe.set(d.doador_id, (dispensadosDe.get(d.doador_id) ?? new Set()).add(d.data_marco));
   const ultimaDoPlano = new Map<string, string>();
   for (const m of mensagensDoPlano) ultimaDoPlano.set(m.doador_id, m.criado_em); // em ordem: fica a mais recente
 
@@ -109,7 +114,7 @@ export async function carregarCarteira(): Promise<Carteira> {
     const recorrenteAtiva = !!principal && !ehPontual(principal) && !ehCancelada(principal);
     const plano = recorrenteAtiva && principal!.criada_em ? pontoDoPlano(principal!.criada_em, hoje) : null;
     const devido = recorrenteAtiva && principal!.criada_em ? brindeDevido(principal!.criada_em, hoje) : null;
-    const marco = recorrenteAtiva && principal!.criada_em ? marcoDoPlano(principal!.criada_em, hoje, ultimaDoPlano.get(doador.id) ?? null) : null;
+    const marco = recorrenteAtiva && principal!.criada_em ? marcoDoPlano(principal!.criada_em, hoje, ultimaDoPlano.get(doador.id) ?? null, dispensadosDe.get(doador.id)) : null;
     const pontuais = dd.filter(pontualConcluida);
     return {
       doador,
