@@ -104,13 +104,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!error) aoSalvar();
   }
 
-  /** Tira o lembrete do marco da fileira de checkpoints, sem registrar contato. */
+  /** Tira o lembrete do marco da fileira de checkpoints, sem registrar contato, e fecha a ficha. */
   async function dispensarMarco() {
     if (!visao.marco) return;
     const { error } = await supabase().from('marcos_dispensados').insert({
       doador_id: doador.id, data_marco: visao.marco.data, checkpoint: visao.marco.checkpoint.chave,
     });
-    resultado(error, `Lembrete de “${visao.marco.checkpoint.nome}” dispensado. Nenhum contato foi registrado.`);
+    if (error) return resultado(error, '');
+    aoSalvar();
+    ref.current?.close();
   }
 
   const podeWhatsApp = !!doador.aceita_whatsapp && !!linkWhatsApp(doador.celular, 'x');
@@ -206,9 +208,22 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
             {principal && <span>{formatarReais(principal.valor)} · {principal.frequencia ?? '—'} · {principal.meio_pagamento ?? '—'}</span>}
           </div>
         </div>
-        <button type="button" className="botao secundario" style={{ color: '#fff', borderColor: '#fff' }} onClick={() => ref.current?.close()} aria-label="Fechar ficha">
-          Fechar
-        </button>
+        <div className="linha" style={{ gap: 8 }}>
+          {visao.marco && (
+            <button
+              type="button"
+              className="botao secundario"
+              style={{ color: '#fff', borderColor: '#fff' }}
+              onClick={dispensarMarco}
+              title={`Tira o lembrete de “${visao.marco.checkpoint.nome}” da fileira de checkpoints sem registrar contato`}
+            >
+              Dispensar
+            </button>
+          )}
+          <button type="button" className="botao secundario" style={{ color: '#fff', borderColor: '#fff' }} onClick={() => ref.current?.close()} aria-label="Fechar ficha">
+            Fechar
+          </button>
+        </div>
       </div>
 
       <div className="ficha-corpo">
@@ -253,9 +268,6 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                       Lembrete: <strong>{visao.marco.checkpoint.nome}</strong>{' '}
                       {visao.marco.dias < 0 ? `atrasado há ${-visao.marco.dias} ${visao.marco.dias === -1 ? 'dia' : 'dias'}` : visao.marco.dias === 0 ? 'hoje' : `em ${formatarData(visao.marco.data)}`}
                     </span>
-                    <button type="button" className="botao-link" style={{ padding: 0 }} onClick={dispensarMarco}>
-                      Dispensar lembrete
-                    </button>
                   </span>
                 )}
               </>
