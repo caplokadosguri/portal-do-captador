@@ -9,6 +9,15 @@ export function telefoneInternacional(celular: string | null): string | null {
   return null;
 }
 
+/** Celular para leitura: (12) 99999-0000. Se não reconhecer o formato, devolve como veio. */
+export function formatarCelular(celular: string | null): string | null {
+  if (!celular?.trim()) return null;
+  const tel = telefoneInternacional(celular);
+  if (!tel) return celular.trim();
+  const d = tel.slice(2);
+  return `(${d.slice(0, 2)}) ${d.slice(2, -4)}-${d.slice(-4)}`;
+}
+
 export function linkWhatsApp(celular: string | null, mensagem: string): string | null {
   const tel = telefoneInternacional(celular);
   if (!tel) return null;

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
-import { formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
+import { formatarCelular, formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -143,6 +143,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     }
   }
 
+  async function copiarCelular() {
+    try {
+      await navigator.clipboard.writeText(formatarCelular(doador.celular) ?? '');
+      setAviso({ tipo: 'ok', texto: 'Celular copiado.' });
+    } catch {
+      setAviso({ tipo: 'erro', texto: 'Não deu para copiar neste navegador.' });
+    }
+  }
+
   function baixarContato() {
     const blob = new Blob([vcard(doador)], { type: 'text/vcard;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -274,6 +283,11 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
             ) : (
               <span className="suave">{visao.situacao === 'pontual' ? 'Trilha dos pontuais' : 'Fora do plano'}</span>
             )}
+            <span className="linha" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <span>Celular: {formatarCelular(doador.celular) ?? <span className="suave">não informado</span>}</span>
+              {doador.celular?.trim() && <button type="button" className="botao secundario pequeno" onClick={copiarCelular}>Copiar</button>}
+              {doador.celular?.trim() && !doador.aceita_whatsapp && <span className="suave pequeno">(não aceitou WhatsApp)</span>}
+            </span>
             <span className="suave">Aceita: {aceites.filter((a) => a.sim).map((a) => a.nome).join(', ') || 'nenhum canal'}</span>
             <span className="suave">
               {doador.tem_endereco === true ? 'Endereço fornecido' : doador.tem_endereco === false ? 'Sem endereço' : 'Endereço: importe o relatório de doadores'}

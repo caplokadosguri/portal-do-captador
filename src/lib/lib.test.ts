@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { avisosDoPeriodo, lerRelatorio, separarDoacoes } from './relatorios';
 import { brindeDevido, Cobranca, Doacao, doacaoPrincipal, motivoFalha, pontoDoPlano, situacao } from './situacao';
-import { linkWhatsApp, preencherModelo, telefoneInternacional, vcard } from './contato';
+import { formatarCelular, linkWhatsApp, preencherModelo, telefoneInternacional, vcard } from './contato';
 import { booleano, data, mesesEntre, numero } from './texto';
 
 const CAB_DOACOES =
@@ -128,6 +128,10 @@ describe('plano de doadores', () => {
 describe('contato', () => {
   it('monta o link de WhatsApp com DDI', () => {
     expect(telefoneInternacional('(12) 99999-0000')).toBe('5512999990000');
+    expect(formatarCelular('5512999990000')).toBe('(12) 99999-0000');
+    expect(formatarCelular('1233334444')).toBe('(12) 3333-4444');
+    expect(formatarCelular('123')).toBe('123');
+    expect(formatarCelular('  ')).toBeNull();
     expect(linkWhatsApp('12 99999-0000', 'Oi Ana')).toBe('https://wa.me/5512999990000?text=Oi%20Ana');
     expect(linkWhatsApp('123', 'x')).toBeNull();
   });
