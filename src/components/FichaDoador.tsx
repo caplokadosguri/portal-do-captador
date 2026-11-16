@@ -115,11 +115,12 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     ref.current?.close();
   }
 
-  const podeWhatsApp = !!doador.aceita_whatsapp && !!linkWhatsApp(doador.celular, 'x');
+  // Liberado também para quem não aceitou WhatsApp (decisão da diretoria executiva, 16/11/2026); a ficha avisa.
+  const podeWhatsApp = !!linkWhatsApp(doador.celular, 'x');
   const proxima = partes.findIndex((_, i) => !enviadas[i]);
 
   async function enviarParte(i: number) {
-    const link = doador.aceita_whatsapp ? linkWhatsApp(doador.celular, partes[i].texto) : null;
+    const link = linkWhatsApp(doador.celular, partes[i].texto);
     if (!link) return;
     window.open(link, '_blank', 'noopener');
     const primeira = !enviadas.some(Boolean);
@@ -331,8 +332,8 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           <div className="linha">
             <button type="button" className="botao secundario" onClick={baixarContato}>Baixar contato</button>
           </div>
-          {!doador.aceita_whatsapp && <p className="suave pequeno">Este doador não aceitou contato por WhatsApp.</p>}
-          {doador.aceita_whatsapp && !podeWhatsApp && <p className="suave pequeno">Celular ausente ou inválido.</p>}
+          {!doador.aceita_whatsapp && podeWhatsApp && <p className="aviso pequeno">Este doador não marcou que aceita WhatsApp. O envio está liberado pela diretoria; use com cuidado.</p>}
+          {!podeWhatsApp && <p className="suave pequeno">Celular ausente ou inválido.</p>}
         </section>
 
         <section className="pilha">
