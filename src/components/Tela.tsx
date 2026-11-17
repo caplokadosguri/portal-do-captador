@@ -69,7 +69,7 @@ export default function Tela({ membro, children }: { membro: Membro; children: R
       <header className={`nav-topo${rolou ? ' solida' : ''}`}>
         <Link href="/" className="nav-marca" aria-label="Trocar perfil">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/casd-logo-escuro.svg" alt="CASD" />
+          <img src="/cap-logo.svg" alt="CAP" />
           <span className="flix">FLIX</span>
         </Link>
         <nav aria-label="Seções" className="nav-secoes">
