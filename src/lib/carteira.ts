@@ -2,6 +2,7 @@
 
 // Junta o espelho da Trackmob com o relacionamento do portal e monta a visão de cada doador.
 
+import type { Variacoes } from './mensagens';
 import { buscarTudo, supabase } from './supabase/cliente';
 import { DIAS_CADASTRO_RECENTE, MAX_CONVITES_PONTUAL, VALOR_ALTO_PONTUAL } from './plano';
 import {
@@ -36,12 +37,14 @@ export interface Relacionamento {
   proximo_contato: string | null;
   status_conversa: string | null;
   anotacoes: string | null;
+  /** Tratamento escolhido na ficha: 'm' ou 'f'. */
+  tratamento?: string | null;
 }
 
 export interface Brinde { id: string; doador_id: string; checkpoint: string; item: string | null; status: string }
 export interface Pontual { doador_id: string; status: string; convites: number }
 export interface ParteMensagem { rotulo: string; texto: string }
-export interface Modelo { chave: string; titulo: string; texto: string; partes?: ParteMensagem[]; ordem?: number }
+export interface Modelo { chave: string; titulo: string; texto: string; partes?: ParteMensagem[]; ordem?: number; variacoes?: Variacoes | null }
 
 export interface VisaoDoador {
   doador: Doador;

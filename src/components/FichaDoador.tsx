@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarCelular, formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
+import { partesDaVariacao, saudacaoDaHora, Tratamento, TRATAMENTOS, Versao, VERSOES, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -29,7 +30,7 @@ const CANAIS: [string, string, keyof VisaoDoador['doador'] | null][] = [
   ['sms', 'SMS', 'aceita_sms'], ['carta', 'Carta', 'aceita_cartas'], ['presencial', 'Presencial', null],
 ];
 
-interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; modelo: string | null; resultado: string | null; nota: string | null; criado_em: string }
+interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; modelo: string | null; versao?: number | null; resultado: string | null; nota: string | null; criado_em: string }
 
 /** Modelo do plano para o marco em que o doador está. */
 const MODELO_DO_MARCO: Record<string, string> = { inicio: 'boas_vindas', renovacao_1: 'renovacao_1', meses_6: 'meses_6', ano_1: 'ano_1' };
@@ -60,18 +61,44 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     const sugerido = modeloSugerido(visao, hoje);
     return modelos.some((m) => m.chave === sugerido) ? sugerido : modelos[0]?.chave ?? '';
   });
+  // Mensagens do plano têm versões (1, 2, 3) e tratamento (masculino/feminino).
+  const [versao, setVersao] = useState<Versao>(1);
+  const [tratamento, setTratamento] = useState<Tratamento | null>(() => (visao.rel?.tratamento === 'm' || visao.rel?.tratamento === 'f' ? visao.rel.tratamento : null));
+  const sugeriuVersao = useRef(false);
   // A mensagem vai em partes, uma de cada vez, para parecer conversa e não disparo.
-  const preencher = (chave: string): ParteMensagem[] => {
+  const preencher = (chave: string, ver: Versao = versao, trat: Tratamento | null = tratamento): ParteMensagem[] => {
     const m = modelos.find((x) => x.chave === chave);
     if (!m) return [];
-    const partes = m.partes?.length ? m.partes : [{ rotulo: 'Mensagem', texto: m.texto }];
+    const base = m.partes?.length ? m.partes : [{ rotulo: 'Mensagem', texto: m.texto }];
+    const partes = (m.variacoes && partesDaVariacao(m.variacoes, ver, trat ?? 'm')) || base;
     const dados = {
       nome: doador.nome, valor: principal?.valor, meses: visao.plano?.mesesDeDoacao, membro: nomeMembro,
       brinde: visao.brinde?.item, tempo: (visao.marco?.checkpoint ?? visao.plano?.atual)?.nome,
+      saudacao: saudacaoDaHora(new Date().getHours()),
     };
     return partes.map((p) => ({ rotulo: p.rotulo, texto: preencherModelo(p.texto, dados) }));
   };
   const [partes, setPartes] = useState<ParteMensagem[]>(() => preencher(chaveModelo));
+  const modeloAtual = modelos.find((x) => x.chave === chaveModelo);
+  const temVersoes = !!modeloAtual?.variacoes;
+  /** Troca modelo, versão ou tratamento e remonta as partes. */
+  function trocarMensagem(mudanca: { chave?: string; versao?: Versao; tratamento?: Tratamento }) {
+    const chave = mudanca.chave ?? chaveModelo;
+    const ver = mudanca.versao ?? versao;
+    const trat = mudanca.tratamento ?? tratamento;
+    setChaveModelo(chave);
+    setVersao(ver);
+    if (mudanca.tratamento) setTratamento(mudanca.tratamento);
+    setPartes(preencher(chave, ver, trat));
+    setEnviadas([]);
+    if (mudanca.chave) setRegistro((r) => ({ ...r, motivo: motivoDoModelo(chave) }));
+  }
+  async function escolherTratamento(t: Tratamento) {
+    trocarMensagem({ tratamento: t });
+    // Fica lembrado para os próximos contatos com este doador.
+    const { error } = await supabase().from('relacionamento').upsert({ doador_id: doador.id, tratamento: t });
+    if (error) setAviso({ tipo: 'erro', texto: `Não salvou o tratamento: ${error.message}` });
+  }
   const [enviadas, setEnviadas] = useState<boolean[]>([]);
   const [rel, setRel] = useState({
     status_conversa: visao.rel?.status_conversa ?? '',
@@ -85,19 +112,31 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   const [filtro, setFiltro] = useState<MotivoContato | 'todos'>('todos');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
+  const buscarHistorico = () =>
+    supabase().from('contatos').select('*').eq('doador_id', doador.id).order('criado_em', { ascending: false }).limit(50);
+
+  async function carregarHistorico() {
+    const { data } = await buscarHistorico();
+    aplicarHistorico((data as ContatoRegistrado[]) ?? []);
+  }
+
+  function aplicarHistorico(lista: ContatoRegistrado[]) {
+    setHistorico(lista);
+    // Na abertura, sugere a versão pela quantidade de mensagens do plano que o doador já recebeu.
+    if (!sugeriuVersao.current) {
+      sugeriuVersao.current = true;
+      const m = modelos.find((x) => x.chave === chaveModelo);
+      if (m?.variacoes) trocarMensagem({ versao: versaoSugerida(m.variacoes, lista.filter((h) => h.motivo === 'plano').length) });
+    }
+  }
+
   useEffect(() => {
     ref.current?.showModal();
     const sb = supabase();
     sb.from('acessos').insert({ doador_id: doador.id, acao: 'abriu_ficha' }).then(() => undefined);
-    carregarHistorico();
+    buscarHistorico().then(({ data }) => aplicarHistorico((data as ContatoRegistrado[]) ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doador.id]);
-
-  async function carregarHistorico() {
-    const { data } = await supabase()
-      .from('contatos').select('*').eq('doador_id', doador.id).order('criado_em', { ascending: false }).limit(50);
-    setHistorico((data as ContatoRegistrado[]) ?? []);
-  }
 
   function resultado(error: { message: string } | null, ok: string) {
     setAviso(error ? { tipo: 'erro', texto: `Não salvou: ${error.message}` } : { tipo: 'ok', texto: ok });
@@ -116,7 +155,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   }
 
   // Liberado também para quem não aceitou WhatsApp (decisão da diretoria executiva, 16/11/2026); a ficha avisa.
-  const podeWhatsApp = !!linkWhatsApp(doador.celular, 'x');
+  const podeWhatsApp = !!linkWhatsApp(doador.celular, 'x') && (!temVersoes || !!tratamento);
   const proxima = partes.findIndex((_, i) => !enviadas[i]);
 
   async function enviarParte(i: number) {
@@ -128,7 +167,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!primeira) return;
     // Um registro por conversa, com o texto completo.
     const { error } = await supabase().from('contatos').insert({
-      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoModelo(chaveModelo), modelo: chaveModelo,
+      doador_id: doador.id, canal: 'whatsapp', motivo: motivoDoModelo(chaveModelo), modelo: chaveModelo, versao: temVersoes ? versao : null,
       nota: partes.map((p) => p.texto).join('\n\n').slice(0, 500),
     });
     resultado(error, 'Contato por WhatsApp registrado. Envie as próximas partes em ordem.');
@@ -300,10 +339,34 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           <h3>Mensagem</h3>
           <label className="campo">
             Modelo
-            <select value={chaveModelo} onChange={(e) => { setChaveModelo(e.target.value); setPartes(preencher(e.target.value)); setEnviadas([]); setRegistro((r) => ({ ...r, motivo: motivoDoModelo(e.target.value) })); }}>
+            <select value={chaveModelo} onChange={(e) => trocarMensagem({ chave: e.target.value })}>
               {modelos.map((m) => <option key={m.chave} value={m.chave}>{m.titulo}</option>)}
             </select>
           </label>
+          {temVersoes && (
+            <div className="linha" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <label className="campo">
+                Versão
+                <select value={versao} onChange={(e) => trocarMensagem({ versao: Number(e.target.value) as Versao })}>
+                  {VERSOES.map((n) => {
+                    const cheia = versaoPreenchida(modeloAtual?.variacoes, n);
+                    return <option key={n} value={n} disabled={!cheia}>Versão {n}{cheia ? '' : ' (em branco)'}</option>;
+                  })}
+                </select>
+              </label>
+              <div className="campo">
+                Tratamento
+                <div className="linha" style={{ gap: 6 }} role="group" aria-label="Tratamento">
+                  {TRATAMENTOS.map(([t, nome]) => (
+                    <button key={t} type="button" className={`botao pequeno ${tratamento === t ? '' : 'secundario'}`} aria-pressed={tratamento === t} onClick={() => escolherTratamento(t)}>
+                      {nome}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {temVersoes && !tratamento && <p className="aviso pequeno">Escolha masculino ou feminino para liberar o envio (fica salvo para os próximos contatos).</p>}
           <p className="suave pequeno" style={{ margin: 0 }}>
             Envie uma parte de cada vez, na ordem. Cada botão abre a conversa com o texto daquela parte; edite à vontade antes.
           </p>
@@ -451,7 +514,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                 return (
                   <li key={h.id}>
                     <span className="selo-mini" style={{ '--cor-selo': m?.cor ?? '#8E9CA3' } as React.CSSProperties}>{m?.rotulo ?? h.motivo}</span>{' '}
-                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''} · {h.membro}
+                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''}{h.versao ? ` (versão ${h.versao})` : ''} · {h.membro}
                     {h.resultado && <> · {h.resultado}</>}
                     {h.nota && <div className="suave">{h.nota}</div>}
                   </li>

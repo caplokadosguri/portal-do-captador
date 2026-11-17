@@ -97,6 +97,7 @@ export default function Tela({ membro, children }: { membro: Membro; children: R
               ))}
             </p>
             {membro.papel === 'admin' && <Link href="/admin/escala">Escala da sede</Link>}
+            {membro.papel === 'admin' && <Link href="/admin/mensagens">Mensagens prontas</Link>}
             <Link href="/">Trocar perfil</Link>
             <Link href="/senha">Trocar senha</Link>
             <button type="button" onClick={sair}>Sair do portal</button>

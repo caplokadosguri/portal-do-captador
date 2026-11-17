@@ -35,6 +35,8 @@ export interface DadosDaMensagem {
   brinde?: string | null;
   /** Tempo de doação por extenso, ex.: "1 ano e meio". */
   tempo?: string | null;
+  /** "Bom dia", "Boa tarde" ou "Boa noite". */
+  saudacao?: string | null;
 }
 
 export function preencherModelo(modelo: string, dados: DadosDaMensagem): string {
@@ -46,6 +48,7 @@ export function preencherModelo(modelo: string, dados: DadosDaMensagem): string 
     .replaceAll('{meses}', dados.meses == null ? '' : String(dados.meses))
     .replaceAll('{membro}', primeiro(dados.membro) || 'a equipe')
     .replaceAll('{brinde}', dados.brinde?.trim() || 'um presente')
+    .replaceAll('{saudacao}', dados.saudacao ?? 'Olá')
     .replaceAll('{tempo}', dados.tempo ?? (dados.meses == null ? '' : `${dados.meses} meses`));
 }
 
