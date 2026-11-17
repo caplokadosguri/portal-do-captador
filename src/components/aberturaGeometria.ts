@@ -9,7 +9,11 @@ export const VOO_INICIO_S = 1.9;
 export const VOO_DURACAO_S = 3.2;
 const T1 = 0.6; // fim da volta (avião já fora da tela, embaixo)
 const T2 = 0.66; // volta por baixo, já na vertical
-const PARTIDA = { x: 401.2, y: 387.7 }; // ponto do avião sobre o "A" do logo
+// Logo "CAPflix": 2284 unidades de largura, na mesma escala do logo antigo (1040px para 2810 unidades).
+export const LOGO_LARGURA = 2284;
+export const LOCKUP_PX = (LOGO_LARGURA * 1040) / 2810;
+// Ponto do avião sobre o "A" do logo; o lockup mais estreito, centralizado, empurra o "A" para a direita.
+export const PARTIDA = { x: 401.2 + (1040 - LOCKUP_PX) / 2, y: 387.7 };
 const K = 0.37011; // unidades do desenho do avião -> unidades do palco
 const NARIZ = (400 - 8) * K; // do ponto de referência até o bico
 const CAUDA = (642 - 400) * K; // até a ponta da cauda

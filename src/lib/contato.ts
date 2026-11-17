@@ -53,14 +53,20 @@ function escaparVcf(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;').replace(/\n/g, '\\n');
 }
 
-export function vcard(d: { nome: string | null; celular: string | null; email: string | null }): string {
+/** Nome na agenda: "Nome - Doador", ou com etiqueta e data ("Nome - Checkpoint - 17/11"). */
+export function nomeNaAgenda(nome: string | null, etiqueta = 'Doador', data?: string): string {
+  return [(nome ?? '').trim() || 'Doador CASD', etiqueta, data].filter(Boolean).join(' - ');
+}
+
+export function vcard(d: { nome: string | null; celular: string | null; email: string | null }, etiqueta = 'Doador', data?: string): string {
   const tel = telefoneInternacional(d.celular);
+  const nome = escaparVcf(nomeNaAgenda(d.nome, etiqueta, data));
   const linhas = [
     'BEGIN:VCARD',
     'VERSION:3.0',
-    // Salvo na agenda como "Nome - Doador", para reconhecer no WhatsApp.
-    `N:;${escaparVcf(`${(d.nome ?? '').trim() || 'Doador CASD'} - Doador`)};;;`,
-    `FN:${escaparVcf(`${(d.nome ?? '').trim() || 'Doador CASD'} - Doador`)}`,
+    // O nome traz a etiqueta para reconhecer a conversa no WhatsApp.
+    `N:;${nome};;;`,
+    `FN:${nome}`,
     tel ? `TEL;TYPE=CELL:+${tel}` : null,
     d.email ? `EMAIL:${escaparVcf(d.email)}` : null,
     'NOTE:Doador CASD',

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { GeometriaVoo } from './aberturaGeometria';
-import { VOO_DURACAO_S, VOO_INICIO_S } from './aberturaGeometria';
-import { AVIAO, LETRA_C, LETRA_D, LETRA_S } from './logoPaths';
+import { LOCKUP_PX, LOGO_LARGURA, PARTIDA, VOO_DURACAO_S, VOO_INICIO_S } from './aberturaGeometria';
+import { AVIAO, LETRA_C, LETRA_P } from './logoPaths';
 import './abertura.css';
 
 // O voo usa animação nativa do SVG: o avião segue a curva de verdade e é redesenhado em vetor
@@ -27,16 +27,15 @@ export default function Abertura({ geometria }: { geometria: GeometriaVoo }) {
     <>
       <div className="ab-fundo" aria-hidden="true">
         <div className="ab-palco" style={{ transform: `translate(-50%, -50%) scale(${escala})` }}>
-          <div className="ab-lockup">
-            <svg viewBox="0 0 2810 650">
+          <div className="ab-lockup" style={{ width: LOCKUP_PX }}>
+            <svg viewBox={`0 0 ${LOGO_LARGURA} 650`}>
               <g className="ab-letras" fill="#3192B3" fillRule="evenodd">
                 <path d={LETRA_C} />
-                <path d={LETRA_S} />
-                <path d={LETRA_D} />
+                <path d={LETRA_P} />
               </g>
               <text
                 className="ab-flix"
-                x="1885"
+                x="1359"
                 y="540"
                 fill="#F9B341"
                 style={{ fontFamily: "'Bebas Neue', Impact, sans-serif", fontSize: 672, fontWeight: 400 }}
@@ -49,7 +48,7 @@ export default function Abertura({ geometria }: { geometria: GeometriaVoo }) {
       </div>
       <div className="ab-aviao-camada" aria-hidden="true">
         <svg ref={voo} viewBox={geometria.viewBox}>
-          <g transform="translate(401.2 387.7)">
+          <g transform={`translate(${PARTIDA.x} ${PARTIDA.y})`}>
             <g>
               <animateMotion
                 path={geometria.caminho}

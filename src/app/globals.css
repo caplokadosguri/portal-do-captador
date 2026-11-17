@@ -462,3 +462,5 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .botao.pequeno { padding: 6px 12px; font-size: 13px; }
 .chip-filtro { border: 1px solid var(--linha); background: transparent; color: var(--tinta-suave); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
 .chip-filtro.ativo { color: var(--tinta); border-color: var(--cor-chip, var(--azul)); background: color-mix(in srgb, var(--cor-chip, var(--azul)) 22%, transparent); }
+
+.fileira-acao { margin-left: auto; font-size: 14px; font-family: inherit; letter-spacing: normal; text-transform: none; }

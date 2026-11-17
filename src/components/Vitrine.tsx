@@ -46,12 +46,15 @@ export function Fileira({
   cor = '#F9B341',
   quantidade,
   vazio = 'Nada por aqui.',
+  acao,
   children,
 }: {
   titulo: string;
   cor?: string;
   quantidade?: number;
   vazio?: string;
+  /** Botão opcional ao lado do título (ex.: baixar contatos da fileira). */
+  acao?: ReactNode;
   children: ReactNode[];
 }) {
   const trilho = useRef<HTMLDivElement>(null);
@@ -65,6 +68,7 @@ export function Fileira({
         <span className="barra" style={{ background: cor }} aria-hidden="true" />
         {titulo}
         {quantidade !== undefined && <span className="quantos">{quantidade}</span>}
+        {acao && <span className="fileira-acao">{acao}</span>}
       </h2>
       {children.length === 0 ? (
         <p className="vazio">{vazio}</p>

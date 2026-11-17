@@ -6,6 +6,7 @@ import FichaDoador from '@/components/FichaDoador';
 import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
+import { contatosDaFileira } from '@/lib/agenda';
 import { diasAteAniversario, rotuloAniversario } from '@/lib/aniversario';
 import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais } from '@/lib/contato';
@@ -102,6 +103,25 @@ export default function Doadores() {
   const atencao = fileiras.find((f) => f.chave === 'atencao')?.itens ?? [];
   const primeiro = atencao[0] ?? fileiras.find((f) => f.chave.startsWith('atraso') && f.itens.length)?.itens[0] ?? null;
 
+  /** Botão da fileira que baixa os contatos dela num .vcf ("Nome - Etiqueta - dd/mm"). */
+  const botaoContatos = (chave: string, itens: VisaoDoador[]) => {
+    const c = carteira ? contatosDaFileira(chave, itens, carteira.hoje) : null;
+    if (!c) return undefined;
+    const baixar = () => {
+      const url = URL.createObjectURL(new Blob([c.conteudo], { type: 'text/vcard;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = c.arquivo;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    return (
+      <button type="button" className="botao secundario pequeno" onClick={baixar} title="Arquivo de contatos para salvar no celular">
+        {c.rotuloBotao} ({c.quantidade})
+      </button>
+    );
+  };
+
   const card = (v: VisaoDoador) => (
     <Card
       key={v.doador.id}
@@ -195,7 +215,7 @@ export default function Doadores() {
         )}
 
         {fileiras.filter((f) => f.itens.length > 0).map((f) => (
-          <Fileira key={f.chave} titulo={f.titulo} cor={COR_FILEIRA[f.chave]} quantidade={f.itens.length}>
+          <Fileira key={f.chave} titulo={f.titulo} cor={COR_FILEIRA[f.chave]} quantidade={f.itens.length} acao={botaoContatos(f.chave, f.itens)}>
             {f.itens.map(card)}
           </Fileira>
         ))}
