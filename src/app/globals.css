@@ -464,3 +464,4 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 .chip-filtro.ativo { color: var(--tinta); border-color: var(--cor-chip, var(--azul)); background: color-mix(in srgb, var(--cor-chip, var(--azul)) 22%, transparent); }
 
 .fileira-acao { margin-left: auto; font-size: 14px; font-family: inherit; letter-spacing: normal; text-transform: none; }
+.tabela-rolagem { overflow-x: auto; }
