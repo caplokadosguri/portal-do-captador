@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import Tela from '@/components/Tela';
 import type { Modelo, ParteMensagem } from '@/lib/carteira';
-import { completarVariacoes, Tratamento, TRATAMENTOS, Versao, VERSOES, versaoPreenchida } from '@/lib/mensagens';
+import { completarVariacoes, rotuloVersao, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida } from '@/lib/mensagens';
 import { useMembro } from '@/lib/membro';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -13,6 +13,8 @@ const VARIAVEIS: [string, string][] = [
   ['{nome}', 'primeiro nome do doador'],
   ['{membro}', 'primeiro nome de quem envia'],
   ['{tempo}', 'tempo de doação do marco (ex.: 1 ano e meio)'],
+  ['{seu_tempo}', 'o mesmo com seu/seus (ex.: seu 1 ano e meio, seus 2 anos)'],
+  ['{apelido}', 'apelido do ITA marcado na ficha (na falta, o primeiro nome)'],
   ['{valor}', 'valor da doação'],
   ['{brinde}', 'brinde do marco'],
 ];
@@ -92,7 +94,7 @@ export default function Mensagens() {
         <p className="suave" style={{ margin: 0 }}>
           As mensagens dos checkpoints têm 3 versões, para o mesmo doador não receber o mesmo texto duas vezes: a ficha
           sugere a versão 1 na primeira mensagem do plano, a 2 na segunda e a 3 na terceira (versão em branco cai para a anterior).
-          Cada versão tem o texto masculino e o feminino.
+          Cada versão tem o texto masculino e o feminino. A versão Iteano vale para doadores marcados como “Do ITA” na ficha.
         </p>
         {aviso && <p className={`aviso ${aviso.tipo}`}>{aviso.texto}</p>}
 
@@ -106,9 +108,9 @@ export default function Mensagens() {
         {edicao && (
           <div className="pilha" style={{ gap: 10 }}>
             <div className="abas-ficha" role="tablist" style={{ padding: 0 }}>
-              {VERSOES.map((n) => (
+              {TODAS_VERSOES.map((n) => (
                 <button key={n} type="button" role="tab" aria-selected={versao === n} onClick={() => setVersao(n)}>
-                  Versão {n}{versaoPreenchida(edicao, n) ? '' : ' (em branco)'}
+                  {rotuloVersao(n)}{versaoPreenchida(edicao, n) ? '' : ' (em branco)'}
                 </button>
               ))}
             </div>

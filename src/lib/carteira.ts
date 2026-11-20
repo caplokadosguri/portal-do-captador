@@ -39,6 +39,10 @@ export interface Relacionamento {
   anotacoes: string | null;
   /** Tratamento escolhido na ficha: 'm' ou 'f'. */
   tratamento?: string | null;
+  /** Doador do ITA (conferido na Wikita), com turma e apelido. */
+  iteano?: boolean | null;
+  turma_ita?: string | null;
+  apelido_ita?: string | null;
 }
 
 export interface Brinde { id: string; doador_id: string; checkpoint: string; item: string | null; status: string }

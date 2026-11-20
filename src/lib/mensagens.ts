@@ -4,9 +4,14 @@
 
 import type { ParteMensagem } from './carteira';
 
-export type Versao = 1 | 2 | 3;
+export type Versao = 1 | 2 | 3 | 4;
 export type Tratamento = 'm' | 'f';
+/** Versões que se revezam entre as mensagens do plano. */
 export const VERSOES: Versao[] = [1, 2, 3];
+/** Versão para doadores do ITA ("Saudações Iteanas…"). */
+export const ITEANO: Versao = 4;
+export const TODAS_VERSOES: Versao[] = [1, 2, 3, ITEANO];
+export const rotuloVersao = (n: Versao) => (n === ITEANO ? 'Iteano' : `Versão ${n}`);
 export const TRATAMENTOS: [Tratamento, string][] = [['m', 'Masculino'], ['f', 'Feminino']];
 
 /** { "1": { "m": [...], "f": [...] }, "2": ..., "3": ... } */
@@ -30,7 +35,8 @@ export function partesDaVariacao(v: Variacoes | null | undefined, versao: Versao
  * Versão para a próxima mensagem do plano: 1ª mensagem -> versão 1, 2ª -> 2, 3ª -> 3, e volta.
  * Se a versão da vez ainda estiver em branco, cai para a anterior preenchida (no fim, a 1).
  */
-export function versaoSugerida(v: Variacoes | null | undefined, mensagensDoPlanoJaEnviadas: number): Versao {
+export function versaoSugerida(v: Variacoes | null | undefined, mensagensDoPlanoJaEnviadas: number, iteano = false): Versao {
+  if (iteano && versaoPreenchida(v, ITEANO)) return ITEANO;
   const daVez = ((mensagensDoPlanoJaEnviadas % 3) + 1) as Versao;
   for (let n = daVez; n >= 1; n--) if (versaoPreenchida(v, n as Versao)) return n as Versao;
   return 1;
@@ -40,7 +46,7 @@ export function versaoSugerida(v: Variacoes | null | undefined, mensagensDoPlano
 export function completarVariacoes(v: Variacoes | null | undefined, base: ParteMensagem[]): Record<string, Record<Tratamento, ParteMensagem[]>> {
   const vazio = () => base.map((p) => ({ rotulo: p.rotulo, texto: '' }));
   const r: Record<string, Record<Tratamento, ParteMensagem[]>> = {};
-  for (const n of VERSOES) {
+  for (const n of TODAS_VERSOES) {
     const ver = v?.[String(n)];
     r[String(n)] = {
       m: ver?.m?.length ? ver.m.map((p) => ({ ...p })) : n === 1 ? base.map((p) => ({ ...p })) : vazio(),

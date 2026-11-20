@@ -37,10 +37,20 @@ export interface DadosDaMensagem {
   tempo?: string | null;
   /** "Bom dia", "Boa tarde" ou "Boa noite". */
   saudacao?: string | null;
+  /** Apelido do ITA (na falta, o primeiro nome). */
+  apelido?: string | null;
+}
+
+/** "1 ano e meio" -> "seu 1 ano e meio"; "2 anos" -> "seus 2 anos"; "6 meses" -> "seus 6 meses". */
+export function comPossessivo(tempo: string): string {
+  const t = tempo.trim();
+  if (!t) return '';
+  return `${/^1\s/.test(t) ? 'seu' : 'seus'} ${t}`;
 }
 
 export function preencherModelo(modelo: string, dados: DadosDaMensagem): string {
   const primeiro = (s: string | null | undefined) => (s ?? '').trim().split(/\s+/)[0] || '';
+  const tempo = dados.tempo ?? (dados.meses == null ? '' : `${dados.meses} meses`);
   const valor = dados.valor == null ? '' : dados.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   return modelo
     .replaceAll('{nome}', primeiro(dados.nome))
@@ -49,7 +59,9 @@ export function preencherModelo(modelo: string, dados: DadosDaMensagem): string 
     .replaceAll('{membro}', primeiro(dados.membro) || 'a equipe')
     .replaceAll('{brinde}', dados.brinde?.trim() || 'um presente')
     .replaceAll('{saudacao}', dados.saudacao ?? 'Olá')
-    .replaceAll('{tempo}', dados.tempo ?? (dados.meses == null ? '' : `${dados.meses} meses`));
+    .replaceAll('{apelido}', dados.apelido?.trim() || primeiro(dados.nome))
+    .replaceAll('{seu_tempo}', comPossessivo(tempo))
+    .replaceAll('{tempo}', tempo);
 }
 
 function escaparVcf(s: string): string {

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarCelular, formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
-import { partesDaVariacao, saudacaoDaHora, Tratamento, TRATAMENTOS, Versao, VERSOES, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
+import { ITEANO, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -65,8 +65,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   const [versao, setVersao] = useState<Versao>(1);
   const [tratamento, setTratamento] = useState<Tratamento | null>(() => (visao.rel?.tratamento === 'm' || visao.rel?.tratamento === 'f' ? visao.rel.tratamento : null));
   const sugeriuVersao = useRef(false);
+  const mensagensDoPlano = useRef(0);
+  // Doador do ITA: turma e apelido conferidos na Wikita; muda a saudação ("Saudações Iteanas…").
+  const [ita, setIta] = useState({
+    iteano: !!visao.rel?.iteano,
+    turma_ita: visao.rel?.turma_ita ?? '',
+    apelido_ita: visao.rel?.apelido_ita ?? '',
+  });
   // A mensagem vai em partes, uma de cada vez, para parecer conversa e não disparo.
-  const preencher = (chave: string, ver: Versao = versao, trat: Tratamento | null = tratamento): ParteMensagem[] => {
+  const preencher = (chave: string, ver: Versao = versao, trat: Tratamento | null = tratamento, apelido: string = ita.apelido_ita): ParteMensagem[] => {
     const m = modelos.find((x) => x.chave === chave);
     if (!m) return [];
     const base = m.partes?.length ? m.partes : [{ rotulo: 'Mensagem', texto: m.texto }];
@@ -75,6 +82,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
       nome: doador.nome, valor: principal?.valor, meses: visao.plano?.mesesDeDoacao, membro: nomeMembro,
       brinde: visao.brinde?.item, tempo: (visao.marco?.checkpoint ?? visao.plano?.atual)?.nome,
       saudacao: saudacaoDaHora(new Date().getHours()),
+      apelido,
     };
     return partes.map((p) => ({ rotulo: p.rotulo, texto: preencherModelo(p.texto, dados) }));
   };
@@ -82,14 +90,14 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   const modeloAtual = modelos.find((x) => x.chave === chaveModelo);
   const temVersoes = !!modeloAtual?.variacoes;
   /** Troca modelo, versão ou tratamento e remonta as partes. */
-  function trocarMensagem(mudanca: { chave?: string; versao?: Versao; tratamento?: Tratamento }) {
+  function trocarMensagem(mudanca: { chave?: string; versao?: Versao; tratamento?: Tratamento; apelido?: string }) {
     const chave = mudanca.chave ?? chaveModelo;
     const ver = mudanca.versao ?? versao;
     const trat = mudanca.tratamento ?? tratamento;
     setChaveModelo(chave);
     setVersao(ver);
     if (mudanca.tratamento) setTratamento(mudanca.tratamento);
-    setPartes(preencher(chave, ver, trat));
+    setPartes(preencher(chave, ver, trat, mudanca.apelido ?? ita.apelido_ita));
     setEnviadas([]);
     if (mudanca.chave) setRegistro((r) => ({ ...r, motivo: motivoDoModelo(chave) }));
   }
@@ -98,6 +106,21 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     // Fica lembrado para os próximos contatos com este doador.
     const { error } = await supabase().from('relacionamento').upsert({ doador_id: doador.id, tratamento: t });
     if (error) setAviso({ tipo: 'erro', texto: `Não salvou o tratamento: ${error.message}` });
+  }
+  /** Salva a marcação do ITA e ajusta a mensagem (versão Iteano e apelido). */
+  const itaSalvo = useRef(ita);
+  async function salvarIta(novo: typeof ita) {
+    setIta(novo);
+    const antes = itaSalvo.current;
+    if (antes.iteano === novo.iteano && antes.turma_ita === novo.turma_ita && antes.apelido_ita === novo.apelido_ita) return;
+    itaSalvo.current = novo;
+    const variacoes = modelos.find((x) => x.chave === chaveModelo)?.variacoes;
+    const ver = !variacoes ? versao : novo.iteano ? (versaoPreenchida(variacoes, ITEANO) ? ITEANO : versao) : versao === ITEANO ? versaoSugerida(variacoes, mensagensDoPlano.current) : versao;
+    if (antes.iteano !== novo.iteano || antes.apelido_ita !== novo.apelido_ita) trocarMensagem({ versao: ver, apelido: novo.apelido_ita });
+    const { error } = await supabase().from('relacionamento').upsert({
+      doador_id: doador.id, iteano: novo.iteano, turma_ita: novo.turma_ita.trim() || null, apelido_ita: novo.apelido_ita.trim() || null,
+    });
+    if (error) setAviso({ tipo: 'erro', texto: `Não salvou a marcação do ITA: ${error.message}` });
   }
   const [enviadas, setEnviadas] = useState<boolean[]>([]);
   const [rel, setRel] = useState({
@@ -126,7 +149,8 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!sugeriuVersao.current) {
       sugeriuVersao.current = true;
       const m = modelos.find((x) => x.chave === chaveModelo);
-      if (m?.variacoes) trocarMensagem({ versao: versaoSugerida(m.variacoes, lista.filter((h) => h.motivo === 'plano').length) });
+      mensagensDoPlano.current = lista.filter((h) => h.motivo === 'plano').length;
+      if (m?.variacoes) trocarMensagem({ versao: versaoSugerida(m.variacoes, mensagensDoPlano.current, ita.iteano) });
     }
   }
 
@@ -329,6 +353,20 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
               {doador.celular?.trim() && !doador.aceita_whatsapp && <span className="suave pequeno">(não aceitou WhatsApp)</span>}
             </span>
             <span className="suave">Aceita: {aceites.filter((a) => a.sim).map((a) => a.nome).join(', ') || 'nenhum canal'}</span>
+            <span className="linha" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label className="linha" style={{ gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={ita.iteano} onChange={(e) => salvarIta({ ...ita, iteano: e.target.checked })} />
+                Do ITA
+              </label>
+              {ita.iteano && (
+                <>
+                  <input aria-label="Turma do ITA" placeholder="Turma (ex.: T25)" value={ita.turma_ita} style={{ width: 120 }}
+                    onChange={(e) => setIta({ ...ita, turma_ita: e.target.value })} onBlur={() => salvarIta(ita)} />
+                  <input aria-label="Apelido no ITA" placeholder="Apelido" value={ita.apelido_ita} style={{ width: 160 }}
+                    onChange={(e) => setIta({ ...ita, apelido_ita: e.target.value })} onBlur={() => salvarIta(ita)} />
+                </>
+              )}
+            </span>
             <span className="suave">
               {doador.tem_endereco === true ? 'Endereço fornecido' : doador.tem_endereco === false ? 'Sem endereço' : 'Endereço: importe o relatório de doadores'}
             </span>
@@ -348,9 +386,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
               <label className="campo">
                 Versão
                 <select value={versao} onChange={(e) => trocarMensagem({ versao: Number(e.target.value) as Versao })}>
-                  {VERSOES.map((n) => {
+                  {TODAS_VERSOES.map((n) => {
                     const cheia = versaoPreenchida(modeloAtual?.variacoes, n);
-                    return <option key={n} value={n} disabled={!cheia}>Versão {n}{cheia ? '' : ' (em branco)'}</option>;
+                    return <option key={n} value={n} disabled={!cheia}>{rotuloVersao(n)}{cheia ? '' : ' (em branco)'}</option>;
                   })}
                 </select>
               </label>
@@ -514,7 +552,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                 return (
                   <li key={h.id}>
                     <span className="selo-mini" style={{ '--cor-selo': m?.cor ?? '#8E9CA3' } as React.CSSProperties}>{m?.rotulo ?? h.motivo}</span>{' '}
-                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''}{h.versao ? ` (versão ${h.versao})` : ''} · {h.membro}
+                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''}{h.versao ? ` (${rotuloVersao(h.versao as Versao).toLowerCase()})` : ''} · {h.membro}
                     {h.resultado && <> · {h.resultado}</>}
                     {h.nota && <div className="suave">{h.nota}</div>}
                   </li>

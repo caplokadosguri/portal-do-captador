@@ -34,3 +34,22 @@ describe('versões das mensagens', () => {
     expect(saudacaoDaHora(20)).toBe('Boa noite');
   });
 });
+
+describe('versão iteano e tempo com possessivo', () => {
+  it('iteano usa a versão 4 se estiver preenchida', async () => {
+    const { versaoSugerida: sug } = await import('./mensagens');
+    const comIteano = { ...v, 4: { m: [{ rotulo: 'A', texto: 'Saudações Iteanas, {apelido}' }], f: [] } };
+    expect(sug(comIteano, 1, true)).toBe(4);
+    expect(sug(v, 1, true)).toBe(2);
+  });
+
+  it('seu/seus antes do tempo e apelido na saudação', async () => {
+    const { comPossessivo, preencherModelo } = await import('./contato');
+    expect(comPossessivo('1 ano e meio')).toBe('seu 1 ano e meio');
+    expect(comPossessivo('2 anos')).toBe('seus 2 anos');
+    expect(comPossessivo('6 meses')).toBe('seus 6 meses');
+    expect(preencherModelo('Saudações Iteanas, {apelido}! {seu_tempo}', { nome: 'Ana Teste', tempo: '2 anos e meio', apelido: 'Tampinha' }))
+      .toBe('Saudações Iteanas, Tampinha! seus 2 anos e meio');
+    expect(preencherModelo('{apelido}', { nome: 'Ana Teste' })).toBe('Ana');
+  });
+});
