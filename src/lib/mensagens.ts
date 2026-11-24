@@ -23,6 +23,13 @@ export function versaoPreenchida(v: Variacoes | null | undefined, versao: Versao
   return !!ver && Object.values(ver).some((partes) => partes?.some((p) => p.texto.trim()));
 }
 
+/** Se o texto da versão muda entre masculino e feminino (aí a ficha pede o tratamento). */
+export function mudaComTratamento(v: Variacoes | null | undefined, versao: Versao): boolean {
+  const ver = v?.[String(versao)];
+  const texto = (p?: ParteMensagem[]) => (p ?? []).map((x) => x.texto.trim()).join('\n');
+  return !!ver && !!texto(ver.f) && !!texto(ver.m) && texto(ver.f) !== texto(ver.m);
+}
+
 /** Partes da versão e do tratamento; se o feminino estiver vazio, usa o masculino (e vice-versa). */
 export function partesDaVariacao(v: Variacoes | null | undefined, versao: Versao, tratamento: Tratamento): ParteMensagem[] | null {
   const ver = v?.[String(versao)];

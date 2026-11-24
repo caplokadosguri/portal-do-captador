@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarCelular, formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
-import { ITEANO, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
+import { ITEANO, mudaComTratamento, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -65,7 +65,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   const [versao, setVersao] = useState<Versao>(1);
   const [tratamento, setTratamento] = useState<Tratamento | null>(() => (visao.rel?.tratamento === 'm' || visao.rel?.tratamento === 'f' ? visao.rel.tratamento : null));
   const sugeriuVersao = useRef(false);
-  const mensagensDoPlano = useRef(0);
+  // Histórico carregado, para sugerir a versão pela quantidade de mensagens do mesmo tipo já enviadas.
+  const historicoRef = useRef<ContatoRegistrado[]>([]);
+  const jaEnviadas = (chave: string) => historicoRef.current.filter((h) => h.motivo === motivoDoModelo(chave)).length;
   // Doador do ITA: turma e apelido conferidos na Wikita; muda a saudação ("Saudações Iteanas…").
   const [ita, setIta] = useState({
     iteano: !!visao.rel?.iteano,
@@ -92,7 +94,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   /** Troca modelo, versão ou tratamento e remonta as partes. */
   function trocarMensagem(mudanca: { chave?: string; versao?: Versao; tratamento?: Tratamento; apelido?: string }) {
     const chave = mudanca.chave ?? chaveModelo;
-    const ver = mudanca.versao ?? versao;
+    // Ao trocar de mensagem, a versão volta para a sugerida daquela mensagem.
+    const novas = mudanca.chave ? modelos.find((x) => x.chave === mudanca.chave)?.variacoes : null;
+    const ver = mudanca.versao ?? (mudanca.chave ? (novas ? versaoSugerida(novas, jaEnviadas(mudanca.chave), ita.iteano) : 1) : versao);
     const trat = mudanca.tratamento ?? tratamento;
     setChaveModelo(chave);
     setVersao(ver);
@@ -115,7 +119,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (antes.iteano === novo.iteano && antes.turma_ita === novo.turma_ita && antes.apelido_ita === novo.apelido_ita) return;
     itaSalvo.current = novo;
     const variacoes = modelos.find((x) => x.chave === chaveModelo)?.variacoes;
-    const ver = !variacoes ? versao : novo.iteano ? (versaoPreenchida(variacoes, ITEANO) ? ITEANO : versao) : versao === ITEANO ? versaoSugerida(variacoes, mensagensDoPlano.current) : versao;
+    const ver = !variacoes ? versao : novo.iteano ? (versaoPreenchida(variacoes, ITEANO) ? ITEANO : versao) : versao === ITEANO ? versaoSugerida(variacoes, jaEnviadas(chaveModelo)) : versao;
     if (antes.iteano !== novo.iteano || antes.apelido_ita !== novo.apelido_ita) trocarMensagem({ versao: ver, apelido: novo.apelido_ita });
     const { error } = await supabase().from('relacionamento').upsert({
       doador_id: doador.id, iteano: novo.iteano, turma_ita: novo.turma_ita.trim() || null, apelido_ita: novo.apelido_ita.trim() || null,
@@ -149,8 +153,8 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     if (!sugeriuVersao.current) {
       sugeriuVersao.current = true;
       const m = modelos.find((x) => x.chave === chaveModelo);
-      mensagensDoPlano.current = lista.filter((h) => h.motivo === 'plano').length;
-      if (m?.variacoes) trocarMensagem({ versao: versaoSugerida(m.variacoes, mensagensDoPlano.current, ita.iteano) });
+      historicoRef.current = lista;
+      if (m?.variacoes) trocarMensagem({ versao: versaoSugerida(m.variacoes, jaEnviadas(chaveModelo), ita.iteano) });
     }
   }
 
@@ -179,7 +183,8 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   }
 
   // Liberado também para quem não aceitou WhatsApp (decisão da diretoria executiva, 16/11/2026); a ficha avisa.
-  const podeWhatsApp = !!linkWhatsApp(doador.celular, 'x') && (!temVersoes || !!tratamento);
+  const pedeTratamento = temVersoes && mudaComTratamento(modeloAtual?.variacoes, versao);
+  const podeWhatsApp = !!linkWhatsApp(doador.celular, 'x') && (!pedeTratamento || !!tratamento);
   const proxima = partes.findIndex((_, i) => !enviadas[i]);
 
   async function enviarParte(i: number) {
@@ -392,7 +397,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                   })}
                 </select>
               </label>
-              <div className="campo">
+              {pedeTratamento && <div className="campo">
                 Tratamento
                 <div className="linha" style={{ gap: 6 }} role="group" aria-label="Tratamento">
                   {TRATAMENTOS.map(([t, nome]) => (
@@ -401,10 +406,10 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                     </button>
                   ))}
                 </div>
-              </div>
+              </div>}
             </div>
           )}
-          {temVersoes && !tratamento && <p className="aviso pequeno">Escolha masculino ou feminino para liberar o envio (fica salvo para os próximos contatos).</p>}
+          {pedeTratamento && !tratamento && <p className="aviso pequeno">Escolha masculino ou feminino para liberar o envio (fica salvo para os próximos contatos).</p>}
           <p className="suave pequeno" style={{ margin: 0 }}>
             Envie uma parte de cada vez, na ordem. Cada botão abre a conversa com o texto daquela parte; edite à vontade antes.
           </p>

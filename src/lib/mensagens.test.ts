@@ -53,3 +53,12 @@ describe('versão iteano e tempo com possessivo', () => {
     expect(preencherModelo('{apelido}', { nome: 'Ana Teste' })).toBe('Ana');
   });
 });
+
+describe('tratamento só quando o texto muda', () => {
+  it('pede tratamento só se masculino e feminino diferem', async () => {
+    const { mudaComTratamento } = await import('./mensagens');
+    expect(mudaComTratamento(v, 1)).toBe(true);
+    expect(mudaComTratamento({ 1: { m: [{ rotulo: 'A', texto: 'igual' }], f: [{ rotulo: 'A', texto: 'igual' }] } }, 1)).toBe(false);
+    expect(mudaComTratamento(v, 2)).toBe(false); // feminino vazio
+  });
+});
