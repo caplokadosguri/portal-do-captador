@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
-import { formatarCelular, formatarData, formatarReais, linkWhatsApp, MOTIVOS_CONTATO, MotivoContato, motivoDoModelo, preencherModelo, vcard } from '@/lib/contato';
+import { formatarCelular, formatarData, formatarReais, linkWhatsApp, modeloDeCobranca, MotivoContato, motivoDoModelo, MOTIVOS_CONTATO, preencherModelo, vcard } from '@/lib/contato';
 import { ITEANO, mudaComTratamento, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
@@ -37,7 +37,7 @@ const MODELO_DO_MARCO: Record<string, string> = { inicio: 'boas_vindas', renovac
 
 function modeloSugerido(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'atualizar_cartao') return 'cartao_vencido';
-  if (v.situacao.startsWith('atraso')) return 'cobranca';
+  if (v.situacao.startsWith('atraso')) return modeloDeCobranca(v.principal?.meio_pagamento);
   if ((diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) ?? 99) <= 6) return 'aniversario';
   if (v.situacao === 'pontual') return 'pontual_convite';
   if (v.situacao === 'sem_doacao') return 'lead_convite';

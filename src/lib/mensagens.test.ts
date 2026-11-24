@@ -62,3 +62,14 @@ describe('tratamento só quando o texto muda', () => {
     expect(mudaComTratamento(v, 2)).toBe(false); // feminino vazio
   });
 });
+
+describe('cobrança pelo meio de pagamento', () => {
+  it('escolhe Pix, boleto ou cartão', async () => {
+    const { modeloDeCobranca, motivoDoModelo } = await import('./contato');
+    expect(modeloDeCobranca('Pix')).toBe('cobranca_pix');
+    expect(modeloDeCobranca('Boleto')).toBe('cobranca_boleto');
+    expect(modeloDeCobranca('Cartão de crédito')).toBe('cobranca');
+    expect(modeloDeCobranca(null)).toBe('cobranca');
+    expect(motivoDoModelo('cobranca_pix')).toBe('cobranca');
+  });
+});

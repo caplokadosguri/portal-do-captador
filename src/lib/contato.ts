@@ -114,8 +114,16 @@ export const MOTIVOS_CONTATO: { valor: MotivoContato; rotulo: string; cor: strin
 ];
 
 /** Motivo do contato pelo modelo de mensagem usado. */
+/** Mensagem de pagamento em atraso pelo meio de pagamento: Pix, boleto ou cartão. */
+export function modeloDeCobranca(meio: string | null | undefined): string {
+  const m = (meio ?? '').toLowerCase();
+  if (m.includes('pix')) return 'cobranca_pix';
+  if (m.includes('boleto')) return 'cobranca_boleto';
+  return 'cobranca';
+}
+
 export function motivoDoModelo(chave: string): MotivoContato {
-  if (chave === 'cobranca' || chave === 'cartao_vencido') return 'cobranca';
+  if (chave.startsWith('cobranca') || chave === 'cartao_vencido') return 'cobranca';
   if (chave === 'aniversario') return 'aniversario';
   if (chave === 'pontual_convite') return 'pontual';
   if (chave === 'lead_convite') return 'lead';
