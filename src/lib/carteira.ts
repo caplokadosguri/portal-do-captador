@@ -10,6 +10,7 @@ import {
   marcoDoPlano, MarcoDoPlano, mesesEmAtraso, PontoDoPlano, pontoDoPlano, pontualConcluida, Situacao, situacao,
 } from './situacao';
 import { diasAteAniversario } from './aniversario';
+import { recuperacaoAtual, voltouAPagar, type Recuperacao } from './recuperacao';
 import { diasEntre, hojeIso, somarMeses } from './texto';
 
 export interface Doador {
@@ -69,6 +70,12 @@ export interface VisaoDoador {
   pontual: Pontual | null;
   virouMensal: boolean;
   valorAlto: boolean;
+  /** Recuperações marcadas (inadimplente que voltou a doar), da mais recente para a mais antiga. */
+  recuperacoes: Recuperacao[];
+  /** A que vale agora: tira o doador das fileiras de atraso até uma nova inadimplência. */
+  recuperado: Recuperacao | null;
+  /** Data do último contato de cobrança registrado. */
+  ultimaCobranca: string | null;
 }
 
 export interface Carteira {
@@ -83,10 +90,10 @@ export async function carregarCarteira(): Promise<Carteira> {
   const sb = supabase();
   const hoje = hojeIso();
   const desde = somarMeses(hoje, -14);
-  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos, mensagensDoPlano, dispensas] = await Promise.all([
+  const [doadores, doacoes, cobrancas, rels, brindes, pontuais, modelos, mensagensDoPlano, dispensas, recuperacoes, contatosDeCobranca] = await Promise.all([
     buscarTudo<Doador>((a, b) => sb.from('doadores').select('*').order('id').range(a, b)),
     buscarTudo<Doacao>((a, b) => sb.from('doacoes').select('*').order('id').range(a, b)),
-    buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,competencia,vencimento,pago_em,status,mensagem_erro,importado_em').gte('vencimento', desde).order('id').range(a, b)),
+    buscarTudo<Cobranca>((a, b) => sb.from('cobrancas').select('id,doacao_id,doador_id,competencia,vencimento,pago_em,status,mensagem_erro,importado_em,valor,valor_pago').gte('vencimento', desde).order('id').range(a, b)),
     buscarTudo<Relacionamento>((a, b) => sb.from('relacionamento').select('*').order('doador_id').range(a, b)),
     buscarTudo<Brinde>((a, b) => sb.from('brindes').select('*').order('id').range(a, b)),
     buscarTudo<Pontual>((a, b) => sb.from('trilha_pontual').select('*').order('doador_id').range(a, b)),
@@ -97,7 +104,13 @@ export async function carregarCarteira(): Promise<Carteira> {
     // Lembretes de marco dispensados sem registrar contato.
     buscarTudo<{ doador_id: string; data_marco: string }>((a, b) =>
       sb.from('marcos_dispensados').select('doador_id,data_marco').gte('data_marco', somarMeses(hoje, -3)).order('doador_id').range(a, b)),
+    buscarTudo<Recuperacao>((a, b) => sb.from('recuperacoes').select('*').order('recuperado_em', { ascending: false }).order('id').range(a, b)),
+    // Contatos de cobrança recentes: quem voltou a pagar depois deles pede confirmação da recuperação.
+    buscarTudo<{ doador_id: string; criado_em: string }>((a, b) =>
+      sb.from('contatos').select('doador_id,criado_em').eq('motivo', 'cobranca').gte('criado_em', somarMeses(hoje, -6)).order('criado_em').range(a, b)),
   ]);
+  const ultimaCobrancaDe = new Map<string, string>();
+  for (const c of contatosDeCobranca) ultimaCobrancaDe.set(c.doador_id, c.criado_em); // em ordem: fica a mais recente
   const dispensadosDe = new Map<string, Set<string>>();
   for (const d of dispensas) dispensadosDe.set(d.doador_id, (dispensadosDe.get(d.doador_id) ?? new Set()).add(d.data_marco));
   const ultimaDoPlano = new Map<string, string>();
@@ -112,6 +125,7 @@ export async function carregarCarteira(): Promise<Carteira> {
   const cobrancasDe = porDoador(cobrancas);
   const relDe = new Map(rels.map((r) => [r.doador_id, r]));
   const pontualDe = new Map(pontuais.map((p) => [p.doador_id, p]));
+  const recuperacoesDe = porDoador(recuperacoes);
 
   const visoes = doadores.map((doador): VisaoDoador => {
     const dd = doacoesDe.get(doador.id) ?? [];
@@ -123,6 +137,8 @@ export async function carregarCarteira(): Promise<Carteira> {
     const devido = recorrenteAtiva && principal!.criada_em ? brindeDevido(principal!.criada_em, hoje) : null;
     const marco = recorrenteAtiva && principal!.criada_em ? marcoDoPlano(principal!.criada_em, hoje, ultimaDoPlano.get(doador.id) ?? null, dispensadosDe.get(doador.id)) : null;
     const pontuais = dd.filter(pontualConcluida);
+    const atrasoDesde = principal && sit.startsWith('atraso') ? inicioDoAtraso(principal, cc, hoje) : null;
+    const recs = recuperacoesDe.get(doador.id) ?? [];
     return {
       doador,
       doacoes: dd,
@@ -130,7 +146,7 @@ export async function carregarCarteira(): Promise<Carteira> {
       cobrancas: cc,
       situacao: sit,
       mesesAtraso: principal && recorrenteAtiva ? mesesEmAtraso(principal, cc, hoje) : null,
-      atrasoDesde: principal && sit.startsWith('atraso') ? inicioDoAtraso(principal, cc, hoje) : null,
+      atrasoDesde,
       falha: principal && sit.startsWith('atraso') ? motivoFalha(cc, principal.id) : null,
       plano,
       marco,
@@ -140,6 +156,9 @@ export async function carregarCarteira(): Promise<Carteira> {
       pontual: pontualDe.get(doador.id) ?? null,
       virouMensal: pontuais.length > 0 && recorrenteAtiva,
       valorAlto: pontuais.some((p) => (p.valor ?? 0) >= VALOR_ALTO_PONTUAL),
+      recuperacoes: recs,
+      recuperado: recuperacaoAtual(recs, atrasoDesde),
+      ultimaCobranca: ultimaCobrancaDe.get(doador.id) ?? null,
     };
   });
 
@@ -176,12 +195,16 @@ export function montarFileiras(c: Carteira): Fileira[] {
   const ultimaPontual = (v: VisaoDoador) =>
     v.doacoes.filter(pontualConcluida).map((d) => d.criada_em).filter((d): d is string => !!d).sort().at(-1) ?? null;
 
+  // Inadimplente marcado como recuperado sai das pendências de cobrança (até uma nova inadimplência).
+  const emAtraso = (v: VisaoDoador, s: string) => v.situacao === s && !v.recuperado;
   const atencao = visoes.filter(
     (v) =>
-      (v.rel?.proximo_contato && v.rel.proximo_contato <= hoje) ||
+      !(v.recuperado && v.situacao.startsWith('atraso')) &&
+      ((v.rel?.proximo_contato && v.rel.proximo_contato <= hoje) ||
       v.rel?.status_conversa === 'nova_mensagem' ||
-      v.rel?.status_conversa === 'contato_humano',
+      v.rel?.status_conversa === 'contato_humano'),
   );
+  const voltaram = visoes.filter((v) => voltouAPagar(v, hoje));
   const checkpoints = visoes.filter(
     (v) => v.situacao === 'em_dia' && (!!v.marco || (v.brindeDevido && (!v.brinde || v.brinde.status !== 'entregue'))),
   );
@@ -212,9 +235,11 @@ export function montarFileiras(c: Carteira): Fileira[] {
     { chave: 'atencao', titulo: 'Precisa de atenção hoje', itens: porData(atencao, (v) => v.rel?.proximo_contato ?? hoje) },
     { chave: 'aniversarios', titulo: 'Aniversariantes da semana', itens: aniversariantes },
     // Atrasos: quem está em aberto há mais tempo primeiro (mais perto de passar para o mês seguinte).
-    { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: porData(visoes.filter((v) => v.situacao === 'atraso_1'), (v) => v.atrasoDesde) },
-    { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: porData(visoes.filter((v) => v.situacao === 'atraso_2'), (v) => v.atrasoDesde) },
-    { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: porData(visoes.filter((v) => v.situacao === 'atraso_3'), (v) => v.atrasoDesde) },
+    // Voltaram a pagar depois de uma cobrança: confirmar a recuperação (conta no placar).
+    { chave: 'voltaram', titulo: 'Voltaram a pagar depois da cobrança: confirmar recuperação', itens: porData(voltaram, (v) => v.ultimaCobranca, true) },
+    { chave: 'atraso_1', titulo: 'Atraso de 1 mês', itens: porData(visoes.filter((v) => emAtraso(v, 'atraso_1')), (v) => v.atrasoDesde) },
+    { chave: 'atraso_2', titulo: 'Atraso de 2 meses', itens: porData(visoes.filter((v) => emAtraso(v, 'atraso_2')), (v) => v.atrasoDesde) },
+    { chave: 'atraso_3', titulo: 'Atraso de 3 meses ou mais', itens: porData(visoes.filter((v) => emAtraso(v, 'atraso_3')), (v) => v.atrasoDesde) },
     { chave: 'checkpoints', titulo: 'Checkpoints: atrasados, de hoje e dos próximos 7 dias', itens: porData(checkpoints, dataDoMarco) },
     {
       chave: 'pontuais',

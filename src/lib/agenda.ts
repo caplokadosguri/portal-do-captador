@@ -12,6 +12,7 @@ export const ETIQUETA_DA_FILEIRA: Record<string, string> = {
   atraso_2: 'Inadimplente',
   atraso_3: 'Inadimplente',
   checkpoints: 'Checkpoint',
+  voltaram: 'Doador',
   pontuais: 'Pontual',
   cadastros: 'Cadastro',
   em_dia: 'Doador',

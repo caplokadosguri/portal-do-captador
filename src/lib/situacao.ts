@@ -27,6 +27,8 @@ export interface Cobranca {
   mensagem_erro: string | null;
   competencia?: string | null;
   importado_em?: string | null;
+  valor?: number | null;
+  valor_pago?: number | null;
 }
 
 export type Situacao = 'em_dia' | 'atraso_1' | 'atraso_2' | 'atraso_3' | 'pontual' | 'cancelado' | 'sem_dados' | 'sem_doacao';

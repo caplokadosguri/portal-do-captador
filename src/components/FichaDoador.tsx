@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { diasEntre } from '@/lib/texto';
 import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarCelular, formatarData, formatarReais, linkWhatsApp, modeloDeCobranca, MotivoContato, motivoDoModelo, MOTIVOS_CONTATO, preencherModelo, vcard } from '@/lib/contato';
 import { ITEANO, mudaComTratamento, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
+import { voltouAPagar } from '@/lib/recuperacao';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -136,6 +138,11 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     () => ({ canal: 'ligacao', motivo: motivoDoModelo(chaveModelo), resultado: '', nota: '' }),
   );
   const [historico, setHistorico] = useState<ContatoRegistrado[]>([]);
+  // Perfil do doador ou histórico de contatos (editável).
+  const [aba, setAba] = useState<'perfil' | 'contatos'>('perfil');
+  const [editando, setEditando] = useState<{ id: string; canal: string; motivo: string; resultado: string; nota: string; data: string } | null>(null);
+  const [apagando, setApagando] = useState<string | null>(null);
+  const [obsRecuperacao, setObsRecuperacao] = useState('');
   const [filtro, setFiltro] = useState<MotivoContato | 'todos'>('todos');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -253,6 +260,58 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     carregarHistorico();
   }
 
+  /** Corrige um contato registrado (tipo, canal, resultado, nota, data). */
+  async function salvarEdicao() {
+    if (!editando) return;
+    const antes = historico.find((h) => h.id === editando.id);
+    const mudouData = antes && antes.criado_em.slice(0, 10) !== editando.data;
+    const { data, error } = await supabase().from('contatos').update({
+      canal: editando.canal, motivo: editando.motivo, resultado: editando.resultado || null, nota: editando.nota || null,
+      ...(mudouData && editando.data ? { criado_em: `${editando.data}T12:00:00-03:00` } : {}),
+    }).eq('id', editando.id).select('id');
+    if (!error && !data?.length) return setAviso({ tipo: 'erro', texto: 'Só quem registrou o contato (ou a diretoria) pode alterar.' });
+    resultado(error, 'Contato corrigido.');
+    if (!error) setEditando(null);
+    carregarHistorico();
+  }
+
+  async function apagarContato(id: string) {
+    const { data, error } = await supabase().from('contatos').delete().eq('id', id).select('id');
+    setApagando(null);
+    if (!error && !data?.length) return setAviso({ tipo: 'erro', texto: 'Só quem registrou o contato (ou a diretoria) pode excluir.' });
+    resultado(error, 'Contato excluído.');
+    carregarHistorico();
+  }
+
+  // Recuperação: inadimplente que voltou a doar (ou que pagou depois de uma cobrança).
+  const pagouDepois = voltouAPagar(visao, hoje);
+  const podeRecuperar = !visao.recuperado && (visao.situacao.startsWith('atraso') || pagouDepois);
+  /** Começo da inadimplência: o do atraso atual; se já está em dia, a primeira cobrança recente registrada. */
+  const inicioDaInadimplencia = () =>
+    visao.atrasoDesde ??
+    historico.filter((h) => h.motivo === 'cobranca' && diasEntre(h.criado_em.slice(0, 10), hoje) <= 120).map((h) => h.criado_em.slice(0, 10)).sort()[0] ??
+    visao.ultimaCobranca?.slice(0, 10) ??
+    null;
+
+  async function marcarRecuperado() {
+    const sb = supabase();
+    const { error } = await sb.from('recuperacoes').insert({
+      doador_id: doador.id, inadimplente_desde: inicioDaInadimplencia(), valor_mensal: principal?.valor ?? null, observacao: obsRecuperacao.trim() || null,
+    });
+    if (error) return resultado(error, '');
+    // A abordagem acabou: sai das pendências.
+    await sb.from('relacionamento').upsert({ doador_id: doador.id, status_conversa: 'resolvido', proximo_contato: null, atualizado_em: new Date().toISOString() });
+    setRel((r) => ({ ...r, status_conversa: 'resolvido', proximo_contato: '' }));
+    setObsRecuperacao('');
+    resultado(null, 'Marcado como recuperado: saiu das pendências e entrou na conta de recuperados.');
+  }
+
+  async function desfazerRecuperado() {
+    if (!visao.recuperado) return;
+    const { error } = await supabase().from('recuperacoes').delete().eq('id', visao.recuperado.id);
+    resultado(error, 'Recuperação desfeita.');
+  }
+
   async function salvarBrinde(status: string) {
     if (!visao.brindeDevido) return;
     const { error } = await supabase().from('brindes').upsert(
@@ -304,8 +363,17 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
         </div>
       </div>
 
+      <div className="abas-ficha" role="tablist" aria-label="Seções da ficha">
+        <button type="button" role="tab" aria-selected={aba === 'perfil'} onClick={() => setAba('perfil')}>Perfil</button>
+        <button type="button" role="tab" aria-selected={aba === 'contatos'} onClick={() => setAba('contatos')}>
+          Histórico de contatos<span className="conta">{historico.length}</span>
+        </button>
+      </div>
+
       <div className="ficha-corpo">
         {aviso && <p className={`aviso ${aviso.tipo}`} role="status">{aviso.texto}</p>}
+
+        {aba === 'perfil' && <>
 
         {visao.situacao.startsWith('atraso') && (
           <p className="aviso" role="note">
@@ -313,6 +381,35 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
             Os dados de pagamento são da importação de {dadosDe ? formatarData(dadosDe) : 'data desconhecida'}
             {visao.atrasoDesde ? `; em aberto desde ${formatarData(visao.atrasoDesde)}` : ''}. Quem voltou a pagar depois de uma falha não aparece como atrasado.
           </p>
+        )}
+
+        {(podeRecuperar || visao.recuperado) && (
+          <section className="cartao pilha" style={{ gap: 8, borderColor: visao.recuperado ? '#3FA66B' : undefined }}>
+            <strong>Recuperação</strong>
+            {visao.recuperado ? (
+              <div className="linha" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>
+                  ✓ Recuperado em {formatarData(visao.recuperado.recuperado_em)}
+                  {visao.recuperado.observacao ? ` · ${visao.recuperado.observacao}` : ''}. Fora das pendências de cobrança
+                  {visao.situacao.startsWith('atraso') ? ' até a próxima importação confirmar o pagamento' : ''}.
+                </span>
+                <button type="button" className="botao-link" onClick={desfazerRecuperado}>Desfazer</button>
+              </div>
+            ) : (
+              <>
+                <span className="pequeno suave">
+                  {pagouDepois
+                    ? `Voltou a pagar depois da cobrança de ${formatarData(visao.ultimaCobranca!.slice(0, 10))}. Confirme para contar como recuperado.`
+                    : 'Quando a abordagem terminar e o doador voltar a doar, marque aqui: ele sai das fileiras de atraso e entra na conta de recuperados.'}
+                </span>
+                <div className="linha" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <input aria-label="Observação da recuperação" placeholder="Observação (opcional): ex.: atualizou o cartão" value={obsRecuperacao}
+                    onChange={(e) => setObsRecuperacao(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+                  <button type="button" className="botao" onClick={marcarRecuperado}>Voltou a doar: marcar como recuperado</button>
+                </div>
+              </>
+            )}
+          </section>
         )}
 
         {visao.situacao === 'sem_doacao' && (
@@ -498,8 +595,94 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           </section>
         )}
 
+        </>}
+
+        {aba === 'contatos' && <>
         <section className="pilha">
-          <h3>Registrar outro contato</h3>
+          <h3>Contatos registrados</h3>
+          <p className="pequeno suave" style={{ margin: 0 }}>Corrija ou exclua registros errados (ex.: clique repetido no WhatsApp). Só quem registrou, ou a diretoria, pode alterar.</p>
+          {historico.length > 0 && (
+            <div className="chips" role="group" aria-label="Filtrar por tipo de contato">
+              <button type="button" className={`chip-filtro${filtro === 'todos' ? ' ativo' : ''}`} onClick={() => setFiltro('todos')}>
+                Todos ({historico.length})
+              </button>
+              {MOTIVOS_CONTATO.filter((m) => historico.some((h) => h.motivo === m.valor)).map((m) => (
+                <button
+                  key={m.valor}
+                  type="button"
+                  className={`chip-filtro${filtro === m.valor ? ' ativo' : ''}`}
+                  style={{ '--cor-chip': m.cor } as React.CSSProperties}
+                  onClick={() => setFiltro(m.valor)}
+                >
+                  {m.rotulo} ({historico.filter((h) => h.motivo === m.valor).length})
+                </button>
+              ))}
+            </div>
+          )}
+          {historico.length === 0 ? (
+            <p className="vazio">Nenhum contato registrado.</p>
+          ) : (
+            <ul className="lista-simples">
+              {historico.filter((h) => filtro === 'todos' || h.motivo === filtro).map((h) => {
+                const m = MOTIVOS_CONTATO.find((x) => x.valor === h.motivo);
+                const modelo = h.modelo ? modelos.find((x) => x.chave === h.modelo)?.titulo : null;
+                return (
+                  <li key={h.id} className="contato-registrado">
+                    {editando?.id === h.id ? (
+                      <div className="pilha" style={{ gap: 8 }}>
+                        <div className="grade-2">
+                          <label className="campo">Data<input type="date" value={editando.data} onChange={(e) => setEditando({ ...editando, data: e.target.value })} /></label>
+                          <label className="campo">Tipo de contato
+                            <select value={editando.motivo} onChange={(e) => setEditando({ ...editando, motivo: e.target.value })}>
+                              {MOTIVOS_CONTATO.map((x) => <option key={x.valor} value={x.valor}>{x.rotulo}</option>)}
+                            </select>
+                          </label>
+                          <label className="campo">Canal
+                            <select value={editando.canal} onChange={(e) => setEditando({ ...editando, canal: e.target.value })}>
+                              {CANAIS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                            </select>
+                          </label>
+                          <label className="campo">Resultado<input value={editando.resultado} onChange={(e) => setEditando({ ...editando, resultado: e.target.value })} /></label>
+                        </div>
+                        <label className="campo">Nota<textarea value={editando.nota} onChange={(e) => setEditando({ ...editando, nota: e.target.value })} /></label>
+                        <div className="linha" style={{ gap: 8 }}>
+                          <button type="button" className="botao pequeno" onClick={salvarEdicao}>Salvar</button>
+                          <button type="button" className="botao secundario pequeno" onClick={() => setEditando(null)}>Cancelar</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="linha" style={{ gap: 8, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                          <div style={{ flex: 1 }}>
+                            <span className="selo-mini" style={{ '--cor-selo': m?.cor ?? '#8E9CA3' } as React.CSSProperties}>{m?.rotulo ?? h.motivo}</span>{' '}
+                            <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {CANAIS.find(([v]) => v === h.canal)?.[1] ?? h.canal}{modelo ? ` · ${modelo}` : ''}{h.versao ? ` (${rotuloVersao(h.versao as Versao).toLowerCase()})` : ''} · {h.membro}
+                            {h.resultado && <> · {h.resultado}</>}
+                          </div>
+                          <div className="linha" style={{ gap: 6, flexShrink: 0 }}>
+                            {apagando === h.id ? (
+                              <>
+                                <button type="button" className="botao pequeno perigo" onClick={() => apagarContato(h.id)}>Confirmar exclusão</button>
+                                <button type="button" className="botao secundario pequeno" onClick={() => setApagando(null)}>Cancelar</button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" className="botao secundario pequeno" onClick={() => { setApagando(null); setEditando({ id: h.id, canal: h.canal, motivo: h.motivo, resultado: h.resultado ?? '', nota: h.nota ?? '', data: h.criado_em.slice(0, 10) }); }}>Editar</button>
+                                <button type="button" className="botao secundario pequeno" onClick={() => { setEditando(null); setApagando(h.id); }}>Excluir</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {h.nota && <div className="suave nota-contato">{h.nota}</div>}
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <section className="pilha">
+          <h3>Registrar contato</h3>
           <div className="grade-2">
             <label className="campo">
               Canal
@@ -527,45 +710,7 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           <button type="button" className="botao secundario" style={{ alignSelf: 'flex-start' }} onClick={registrarContato}>Registrar contato</button>
         </section>
 
-        <section className="pilha">
-          <h3>Histórico</h3>
-          {historico.length > 0 && (
-            <div className="chips" role="group" aria-label="Filtrar por tipo de contato">
-              <button type="button" className={`chip-filtro${filtro === 'todos' ? ' ativo' : ''}`} onClick={() => setFiltro('todos')}>
-                Todos ({historico.length})
-              </button>
-              {MOTIVOS_CONTATO.filter((m) => historico.some((h) => h.motivo === m.valor)).map((m) => (
-                <button
-                  key={m.valor}
-                  type="button"
-                  className={`chip-filtro${filtro === m.valor ? ' ativo' : ''}`}
-                  style={{ '--cor-chip': m.cor } as React.CSSProperties}
-                  onClick={() => setFiltro(m.valor)}
-                >
-                  {m.rotulo} ({historico.filter((h) => h.motivo === m.valor).length})
-                </button>
-              ))}
-            </div>
-          )}
-          {historico.length === 0 ? (
-            <p className="vazio">Nenhum contato registrado.</p>
-          ) : (
-            <ul className="lista-simples">
-              {historico.filter((h) => filtro === 'todos' || h.motivo === filtro).map((h) => {
-                const m = MOTIVOS_CONTATO.find((x) => x.valor === h.motivo);
-                const modelo = h.modelo ? modelos.find((x) => x.chave === h.modelo)?.titulo : null;
-                return (
-                  <li key={h.id}>
-                    <span className="selo-mini" style={{ '--cor-selo': m?.cor ?? '#8E9CA3' } as React.CSSProperties}>{m?.rotulo ?? h.motivo}</span>{' '}
-                    <strong>{new Date(h.criado_em).toLocaleDateString('pt-BR')}</strong> · {h.canal}{modelo ? ` · ${modelo}` : ''}{h.versao ? ` (${rotuloVersao(h.versao as Versao).toLowerCase()})` : ''} · {h.membro}
-                    {h.resultado && <> · {h.resultado}</>}
-                    {h.nota && <div className="suave">{h.nota}</div>}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        </>}
       </div>
     </dialog>
   );

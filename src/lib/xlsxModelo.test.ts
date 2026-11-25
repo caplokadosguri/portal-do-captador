@@ -88,7 +88,7 @@ describe('plano de abordagem', () => {
     cobrancas: [], situacao, mesesAtraso: situacao === 'em_dia' ? 0 : situacao === 'atraso_2' ? 2 : 1,
     atrasoDesde: situacao === 'atraso_2' ? '2026-09-05' : situacao === 'atraso_1' ? '2026-10-05' : null, falha: { motivo: 'atualizar_cartao', mensagem: 'Cartão vencido' },
     plano: null, marco: null, brindeDevido: null, brinde: null, rel: { doador_id: id, responsavel: 'membro@casd.test', proximo_contato: '2026-11-10', status_conversa: 'aguardando_resposta', anotacoes: 'Pediu para ligar à noite' },
-    pontual: null, virouMensal: false, valorAlto: false,
+    pontual: null, virouMensal: false, valorAlto: false, recuperacoes: [], recuperado: null, ultimaCobranca: null,
   });
 
   it('escreve a aba Inadimplentes: atrasados primeiro, regularizados no fim', async () => {

@@ -51,7 +51,7 @@ describe('cadastros para converter', () => {
       doador: { id, nome: id, email: null, celular: null, aceita_email: false, aceita_ligacao: false, aceita_sms: false, aceita_whatsapp: x.whats ?? true, aceita_cartas: false, aceita_mala_direta: false, cadastrado_em },
       doacoes: [], principal: null, cobrancas: [], situacao: x.situacao ?? 'sem_doacao', mesesAtraso: null, atrasoDesde: null, falha: null, plano: null,
       brindeDevido: null, brinde: null, rel: x.status ? { doador_id: id, responsavel: null, proximo_contato: null, status_conversa: x.status, anotacoes: null } : null,
-      pontual: null, virouMensal: false, valorAlto: false,
+      pontual: null, virouMensal: false, valorAlto: false, recuperacoes: [], recuperado: null, ultimaCobranca: null,
     });
     const visoes = [
       v('Antigo', '2025-01-10'), v('Recente', '2026-11-01'), v('Mais recente', '2026-11-09'),
@@ -69,7 +69,7 @@ describe('ordem por data nas fileiras e tipos de contato', () => {
     const base = (id: string, x: object) => ({
       doador: { id, nome: id, email: null, celular: null, aceita_email: true, aceita_ligacao: false, aceita_sms: false, aceita_whatsapp: true, aceita_cartas: false, aceita_mala_direta: false },
       doacoes: [], principal: null, cobrancas: [], mesesAtraso: null, atrasoDesde: null, falha: null, plano: null,
-      brindeDevido: null, brinde: null, rel: null, pontual: null, virouMensal: false, valorAlto: false, ...x,
+      brindeDevido: null, brinde: null, rel: null, pontual: null, virouMensal: false, valorAlto: false, recuperacoes: [], recuperado: null, ultimaCobranca: null, ...x,
     });
     const plano = (dataProximo: string) => ({ atual: null, proximo: { chave: 'x', nome: 'x', meses: 6, brinde: true }, dataProximo, mesesDeDoacao: 5 });
     const visoes = [
@@ -87,6 +87,26 @@ describe('ordem por data nas fileiras e tipos de contato', () => {
     expect(ids('checkpoints')).toEqual(['D', 'C']);
     expect(ids('em_dia')).toEqual(['D', 'C', 'G']);
     expect(ids('cancelado')).toEqual(['F', 'E']);
+  });
+
+  it('recuperado sai do atraso; quem voltou a pagar depois da cobrança pede confirmação', async () => {
+    const { montarFileiras } = await import('./carteira');
+    const base = (id: string, x: object) => ({
+      doador: { id, nome: id, email: null, celular: null, aceita_email: true, aceita_ligacao: false, aceita_sms: false, aceita_whatsapp: true, aceita_cartas: false, aceita_mala_direta: false },
+      doacoes: [], principal: null, cobrancas: [], mesesAtraso: null, atrasoDesde: null, falha: null, plano: null, marco: null,
+      brindeDevido: null, brinde: null, rel: null, pontual: null, virouMensal: false, valorAlto: false, recuperacoes: [], recuperado: null, ultimaCobranca: null, ...x,
+    });
+    const rec = { id: 'r', doador_id: 'R', recuperado_em: '2026-11-20', inadimplente_desde: '2026-10-05', valor_mensal: 50, observacao: null, marcado_por: 'a', criado_em: '' };
+    const visoes = [
+      base('R', { situacao: 'atraso_1', atrasoDesde: '2026-10-05', recuperacoes: [rec], recuperado: rec, rel: { doador_id: 'R', proximo_contato: '2026-11-21' } }),
+      base('N', { situacao: 'atraso_1', atrasoDesde: '2026-10-05' }),
+      base('V', { situacao: 'em_dia', ultimaCobranca: '2026-11-15T10:00:00Z' }),
+    ];
+    const f = montarFileiras({ hoje: '2026-11-25', dadosDe: null, modelos: [], visoes } as never);
+    const ids = (k: string) => f.find((x) => x.chave === k)!.itens.map((v) => v.doador.id);
+    expect(ids('atraso_1')).toEqual(['N']);
+    expect(ids('atencao')).toEqual([]);
+    expect(ids('voltaram')).toEqual(['V']);
   });
 
   it('o tipo do contato vem do modelo usado, não da situação do doador', async () => {

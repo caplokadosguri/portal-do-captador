@@ -3,18 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Carregando, SemAcesso } from '@/components/Cabecalho';
 import FichaDoador from '@/components/FichaDoador';
-import StatusDrive from '@/components/StatusDrive';
 import Tela from '@/components/Tela';
 import { Card, Destaque, Ferramentas, Fileira } from '@/components/Vitrine';
 import { contatosDaFileira } from '@/lib/agenda';
 import { diasAteAniversario, rotuloAniversario } from '@/lib/aniversario';
 import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/carteira';
 import { formatarData, formatarReais } from '@/lib/contato';
-import { ContatoDoador, exportarCarteira, exportarInadimplentes } from '@/lib/exportacoes';
+import { exportarCarteira } from '@/lib/exportacoes';
 import { gerarPlanilha } from '@/lib/planilha';
+import { resumoRecuperacao, voltouAPagar } from '@/lib/recuperacao';
 import { DIAS_PARA_CONFERIR } from '@/lib/plano';
 import { diasEntre } from '@/lib/texto';
-import { buscarTudo, supabase } from '@/lib/supabase/cliente';
 import { podeVer, useMembro } from '@/lib/membro';
 import { NOME_SITUACAO, Situacao } from '@/lib/situacao';
 
@@ -31,19 +30,8 @@ const COR: Record<Situacao, string> = {
 
 const COR_FILEIRA: Record<string, string> = {
   atencao: '#E5533D', aniversarios: '#F06FA8', atraso_1: COR.atraso_1, atraso_2: COR.atraso_2, atraso_3: COR.atraso_3,
-  checkpoints: '#8E6CD1', pontuais: COR.pontual, cadastros: '#5DA9D6', em_dia: COR.em_dia, cancelado: COR.cancelado,
+  checkpoints: '#8E6CD1', voltaram: '#3FA66B', pontuais: COR.pontual, cadastros: '#5DA9D6', em_dia: COR.em_dia, cancelado: COR.cancelado,
 };
-
-/** Busca os contatos de cobrança e o nome dos membros para a aba "Inadimplentes". */
-async function prepararInadimplentes(carteira: Carteira | null) {
-  const sb = supabase();
-  const contatos = await buscarTudo<ContatoDoador>((a, b) =>
-    sb.from('contatos').select('doador_id, membro, canal, motivo, resultado, nota, criado_em').eq('motivo', 'cobranca').range(a, b),
-  );
-  const { data: membros } = await sb.from('membros').select('email, nome');
-  const nomes = new Map((membros ?? []).map((m: { email: string; nome: string }) => [m.email, m.nome]));
-  return exportarInadimplentes(carteira?.visoes ?? [], contatos, (e) => nomes.get(e) ?? e, carteira?.hoje ?? '', carteira?.dadosDe ?? null);
-}
 
 function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.rel?.status_conversa === 'nova_mensagem') return 'Nova mensagem';
@@ -52,6 +40,8 @@ function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'atualizar_cartao') return 'Cartão precisa ser atualizado';
   if (v.falha?.motivo === 'lembrete') return 'Falta de saldo ou limite';
   if (v.brindeDevido && v.brinde?.status !== 'entregue') return `Brinde: ${v.brindeDevido.nome}`;
+  if (voltouAPagar(v, hoje)) return `Cobrado em ${formatarData(v.ultimaCobranca!.slice(0, 10))} · voltou a pagar`;
+  if (v.recuperado && v.situacao.startsWith('atraso')) return `Recuperado em ${formatarData(v.recuperado.recuperado_em)}`;
   if (v.marco) {
     const { checkpoint: c, dias, data } = v.marco;
     if (dias < 0) return `${c.nome} · atrasado há ${-dias} ${dias === -1 ? 'dia' : 'dias'}`;
@@ -74,11 +64,9 @@ export default function Doadores() {
   const [aberto, setAberto] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
 
-  const [versao, setVersao] = useState(0);
   const recarregar = useCallback(() => carregarCarteira().then(setCarteira).catch((e: Error) => setErro(e.message)), []);
   const salvou = useCallback(async () => {
     await recarregar();
-    setVersao((v) => v + 1);
   }, [recarregar]);
 
   useEffect(() => {
@@ -86,6 +74,7 @@ export default function Doadores() {
   }, [membro, recarregar]);
 
   const fileiras = useMemo(() => (carteira ? montarFileiras(carteira) : []), [carteira]);
+  const recuperacao = useMemo(() => (carteira ? resumoRecuperacao(carteira.visoes) : null), [carteira]);
   const encontrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!carteira || q.length < 2) return [];
@@ -175,13 +164,6 @@ export default function Doadores() {
 
       <div className="miolo">
         <Ferramentas>
-          <StatusDrive
-            planilha="abordagem"
-            pronto={!!carteira}
-            versao={versao}
-            ehAdmin={membro.papel === 'admin'}
-            preparar={() => prepararInadimplentes(carteira)}
-          />
           <button type="button" className="link-botao" style={{ alignSelf: 'center' }} onClick={() => gerarPlanilha(exportarCarteira(carteira?.visoes ?? []))}>
             Baixar carteira completa (.xlsx)
           </button>
@@ -195,6 +177,18 @@ export default function Doadores() {
             </p>
           )}
         </Ferramentas>
+
+        {recuperacao && (
+          <section className="pilha placar" aria-label="Recuperação de inadimplentes" style={{ gap: 8 }}>
+            <h2 className="titulo-placar">Recuperação de inadimplentes</h2>
+            <div className="numeros">
+              <div className="numero positivo"><strong>{recuperacao.doadores}</strong><span>Doadores recuperados (voltaram a doar)</span></div>
+              <div className="numero positivo"><strong>{formatarReais(recuperacao.recebido)}</strong><span>Já recebido deles desde que ficaram inadimplentes</span></div>
+              <div className="numero positivo"><strong>{formatarReais(recuperacao.porMes)}</strong><span>Por mês de volta (recuperados que seguem em dia)</span></div>
+              <div className="numero negativo"><strong>{recuperacao.emAtraso}</strong><span>Em atraso agora · {formatarReais(recuperacao.porMesEmAtraso)}/mês em risco</span></div>
+            </div>
+          </section>
+        )}
 
         {erro && <p className="aviso erro">Erro ao carregar: {erro}</p>}
         {carteira && desatualizado && (

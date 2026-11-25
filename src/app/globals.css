@@ -465,3 +465,6 @@ table.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 .fileira-acao { margin-left: auto; font-size: 14px; font-family: inherit; letter-spacing: normal; text-transform: none; }
 .tabela-rolagem { overflow-x: auto; }
+.titulo-placar { font-size: 18px; margin: 0; }
+.botao.perigo { background: #C0392B; border-color: #C0392B; color: #fff; }
+.nota-contato { white-space: pre-wrap; margin-top: 4px; font-size: 13px; }
