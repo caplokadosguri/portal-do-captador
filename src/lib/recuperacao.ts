@@ -7,6 +7,8 @@ import { diasEntre } from './texto';
 
 export interface Recuperacao {
   id: string;
+  /** recuperado = voltou a doar; desistiu = pediu para parar de doar. */
+  tipo?: 'recuperado' | 'desistiu' | null;
   doador_id: string;
   recuperado_em: string;
   inadimplente_desde: string | null;
@@ -29,6 +31,9 @@ export function recuperacaoAtual(recs: Recuperacao[], atrasoDesde: string | null
   if (atrasoDesde && atrasoDesde > ultima.recuperado_em) return null;
   return ultima;
 }
+
+export const desistiu = (r: Recuperacao | null | undefined) => r?.tipo === 'desistiu';
+const recuperados = (recs: Recuperacao[]) => recs.filter((r) => !desistiu(r));
 
 /** Soma das cobranças pagas a partir de uma data (valor pago; na falta, o valor da cobrança). */
 export function pagoDesde(cobrancas: Pick<Cobranca, 'pago_em' | 'status' | 'vencimento' | 'valor' | 'valor_pago'>[], desde: string): number {
@@ -57,6 +62,8 @@ export interface ResumoRecuperacao {
   porMes: number;
   /** Recuperados sem nenhum pagamento importado ainda (aparece na próxima importação da Trackmob). */
   aguardandoPagamento: number;
+  /** Pediram para parar de doar (marcação valendo). */
+  desistiram: number;
   /** Doadores em atraso agora (sem recuperação marcada). */
   emAtraso: number;
   /** Valor mensal desses doadores em atraso. */
@@ -72,17 +79,22 @@ export function resumoRecuperacao(
     principal: { valor: number | null } | null;
   }[],
 ): ResumoRecuperacao {
-  const r: ResumoRecuperacao = { doadores: 0, recebido: 0, porMes: 0, aguardandoPagamento: 0, emAtraso: 0, porMesEmAtraso: 0 };
+  const r: ResumoRecuperacao = { doadores: 0, recebido: 0, porMes: 0, aguardandoPagamento: 0, desistiram: 0, emAtraso: 0, porMesEmAtraso: 0 };
   for (const v of visoes) {
-    if (v.recuperacoes.length) {
+    if (desistiu(v.recuperado)) {
+      r.desistiram++;
+      continue;
+    }
+    const recs = recuperados(v.recuperacoes);
+    if (recs.length) {
       r.doadores++;
-      const desde = v.recuperacoes.map((x) => x.inadimplente_desde ?? x.recuperado_em).sort()[0];
+      const desde = recs.map((x) => x.inadimplente_desde ?? x.recuperado_em).sort()[0];
       const pago = pagoDesde(v.cobrancas, desde);
       r.recebido += pago;
       if (!pago) r.aguardandoPagamento++;
       // Conta assim que é marcado (o pagamento só chega na próxima importação), enquanto a marcação valer.
       if (v.situacao !== 'cancelado' && (v.recuperado || v.situacao === 'em_dia')) {
-        const ultima = [...v.recuperacoes].sort((a, b) => b.recuperado_em.localeCompare(a.recuperado_em))[0];
+        const ultima = [...recs].sort((a, b) => b.recuperado_em.localeCompare(a.recuperado_em))[0];
         r.porMes += Number(ultima.valor_mensal ?? v.principal?.valor ?? 0);
       }
     }

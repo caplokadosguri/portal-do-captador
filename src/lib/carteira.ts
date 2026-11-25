@@ -10,7 +10,7 @@ import {
   marcoDoPlano, MarcoDoPlano, mesesEmAtraso, PontoDoPlano, pontoDoPlano, pontualConcluida, Situacao, situacao,
 } from './situacao';
 import { diasAteAniversario } from './aniversario';
-import { recuperacaoAtual, voltouAPagar, type Recuperacao } from './recuperacao';
+import { desistiu, recuperacaoAtual, voltouAPagar, type Recuperacao } from './recuperacao';
 import { diasEntre, hojeIso, somarMeses } from './texto';
 
 export interface Doador {
@@ -198,8 +198,11 @@ export function montarFileiras(c: Carteira): Fileira[] {
 
   // Inadimplente marcado como recuperado sai das pendências de cobrança (até uma nova inadimplência).
   const emAtraso = (v: VisaoDoador, s: string) => v.situacao === s && !v.recuperado;
+  // Pediu para parar de doar: fora de todas as fileiras de ação (segue na busca e, cancelado na Trackmob, em Cancelados).
+  const ativo = (v: VisaoDoador) => !desistiu(v.recuperado);
   const atencao = visoes.filter(
     (v) =>
+      ativo(v) &&
       !(v.recuperado && v.situacao.startsWith('atraso')) &&
       ((v.rel?.proximo_contato && v.rel.proximo_contato <= hoje) ||
       v.rel?.status_conversa === 'nova_mensagem' ||
@@ -207,10 +210,11 @@ export function montarFileiras(c: Carteira): Fileira[] {
   );
   const voltaram = visoes.filter((v) => voltouAPagar(v, hoje));
   const checkpoints = visoes.filter(
-    (v) => v.situacao === 'em_dia' && (!!v.marco || (v.brindeDevido && (!v.brinde || v.brinde.status !== 'entregue'))),
+    (v) => ativo(v) && v.situacao === 'em_dia' && (!!v.marco || (v.brindeDevido && (!v.brinde || v.brinde.status !== 'entregue'))),
   );
   const pontuais = visoes.filter(
     (v) =>
+      ativo(v) &&
       v.situacao === 'pontual' &&
       !v.virouMensal &&
       !['virou_mensal', 'sem_resposta'].includes(v.pontual?.status ?? '') &&
@@ -220,7 +224,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
   // Aniversário nos próximos 7 dias: doadores (não cadastros sem doação) que aceitaram WhatsApp ou e-mail.
   const aniversariantes = visoes
     .map((v) => ({ v, dias: diasAteAniversario(v.doador.nascimento_dia ?? null, v.doador.nascimento_mes ?? null, hoje) }))
-    .filter(({ v, dias }) => dias !== null && dias <= 6 && v.situacao !== 'cancelado' && v.situacao !== 'sem_doacao' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
+    .filter(({ v, dias }) => ativo(v) && dias !== null && dias <= 6 && v.situacao !== 'cancelado' && v.situacao !== 'sem_doacao' && (v.doador.aceita_whatsapp || v.doador.aceita_email))
     .sort((a, b) => a.dias! - b.dias! || porNome(a.v, b.v))
     .map(({ v }) => v);
 
@@ -249,7 +253,7 @@ export function montarFileiras(c: Carteira): Fileira[] {
       itens: [...porData(pontuais, ultimaPontual, true)].sort((a, b) => Number(b.valorAlto) - Number(a.valorAlto)),
     },
     { chave: 'cadastros', titulo: 'Cadastros para converter (sem doação, últimos 6 meses)', itens: cadastros },
-    { chave: 'em_dia', titulo: 'Mensais em dia', itens: porData(visoes.filter((v) => v.situacao === 'em_dia'), (v) => v.plano?.dataProximo) },
+    { chave: 'em_dia', titulo: 'Mensais em dia', itens: porData(visoes.filter((v) => ativo(v) && v.situacao === 'em_dia'), (v) => v.plano?.dataProximo) },
     { chave: 'cancelado', titulo: 'Cancelados', itens: porData(visoes.filter((v) => v.situacao === 'cancelado'), (v) => v.principal?.finalizada_em, true) },
   ];
 }

@@ -35,6 +35,12 @@ describe('recuperação de inadimplentes', () => {
       { situacao: 'atraso_1', recuperacoes: [rec('2026-11-22')], recuperado: rec('2026-11-22'), cobrancas: [], principal: { valor: 20 } },
     ]);
     // O de atraso_1 marcado agora já conta no "por mês", mas ainda espera o pagamento na importação.
-    expect(r).toEqual({ doadores: 2, recebido: 100, porMes: 100, aguardandoPagamento: 1, emAtraso: 1, porMesEmAtraso: 30 });
+    expect(r).toEqual({ doadores: 2, recebido: 100, porMes: 100, aguardandoPagamento: 1, desistiram: 0, emAtraso: 1, porMesEmAtraso: 30 });
+  });
+
+  it('quem pediu para parar sai do atraso e não conta como recuperado', () => {
+    const d = rec('2026-11-24', { tipo: 'desistiu' });
+    const r = resumoRecuperacao([{ situacao: 'atraso_1', recuperacoes: [d], recuperado: d, cobrancas: [], principal: { valor: 50 } }]);
+    expect(r).toMatchObject({ doadores: 0, porMes: 0, desistiram: 1, emAtraso: 0 });
   });
 });

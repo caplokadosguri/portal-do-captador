@@ -11,7 +11,7 @@ import { Carteira, carregarCarteira, montarFileiras, VisaoDoador } from '@/lib/c
 import { formatarData, formatarReais } from '@/lib/contato';
 import { exportarCarteira } from '@/lib/exportacoes';
 import { gerarPlanilha } from '@/lib/planilha';
-import { resumoRecuperacao, voltouAPagar } from '@/lib/recuperacao';
+import { desistiu, resumoRecuperacao, voltouAPagar } from '@/lib/recuperacao';
 import { DIAS_PARA_CONFERIR } from '@/lib/plano';
 import { diasEntre } from '@/lib/texto';
 import { podeVer, useMembro } from '@/lib/membro';
@@ -41,6 +41,7 @@ function detalhe(v: VisaoDoador, hoje: string): string {
   if (v.falha?.motivo === 'lembrete') return 'Falta de saldo ou limite';
   if (v.brindeDevido && v.brinde?.status !== 'entregue') return `Brinde: ${v.brindeDevido.nome}`;
   if (voltouAPagar(v, hoje)) return `Cobrado em ${formatarData(v.ultimaCobranca!.slice(0, 10))} · voltou a pagar`;
+  if (desistiu(v.recuperado)) return `Pediu para parar em ${formatarData(v.recuperado!.recuperado_em)}`;
   if (v.recuperado && v.situacao.startsWith('atraso')) return `Recuperado em ${formatarData(v.recuperado.recuperado_em)}`;
   if (v.marco) {
     const { checkpoint: c, dias, data } = v.marco;
@@ -185,7 +186,7 @@ export default function Doadores() {
               <div className="numero positivo"><strong>{recuperacao.doadores}</strong><span>Doadores recuperados (voltaram a doar)</span></div>
               <div className="numero positivo"><strong>{formatarReais(recuperacao.recebido)}</strong><span>Já recebido deles desde que ficaram inadimplentes (pagamentos importados da Trackmob){recuperacao.aguardandoPagamento ? ` · ${recuperacao.aguardandoPagamento} aguardando a próxima importação` : ''}</span></div>
               <div className="numero positivo"><strong>{formatarReais(recuperacao.porMes)}</strong><span>Por mês de volta (doações mensais dos recuperados)</span></div>
-              <div className="numero negativo"><strong>{recuperacao.emAtraso}</strong><span>Em atraso agora · {formatarReais(recuperacao.porMesEmAtraso)}/mês em risco</span></div>
+              <div className="numero negativo"><strong>{recuperacao.emAtraso}</strong><span>Em atraso agora · {formatarReais(recuperacao.porMesEmAtraso)}/mês em risco{recuperacao.desistiram ? ` · ${recuperacao.desistiram} pediram para parar` : ''}</span></div>
             </div>
           </section>
         )}

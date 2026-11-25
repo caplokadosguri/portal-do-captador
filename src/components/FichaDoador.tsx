@@ -6,7 +6,7 @@ import { diasAteAniversario } from '@/lib/aniversario';
 import type { Modelo, ParteMensagem, VisaoDoador } from '@/lib/carteira';
 import { formatarCelular, formatarData, formatarReais, linkWhatsApp, modeloDeCobranca, MotivoContato, motivoDoModelo, MOTIVOS_CONTATO, preencherModelo, vcard } from '@/lib/contato';
 import { ITEANO, mudaComTratamento, partesDaVariacao, rotuloVersao, saudacaoDaHora, TODAS_VERSOES, Tratamento, TRATAMENTOS, Versao, versaoPreenchida, versaoSugerida } from '@/lib/mensagens';
-import { voltouAPagar } from '@/lib/recuperacao';
+import { desistiu, voltouAPagar } from '@/lib/recuperacao';
 import { NOME_SITUACAO } from '@/lib/situacao';
 import { supabase } from '@/lib/supabase/cliente';
 
@@ -293,23 +293,28 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     visao.ultimaCobranca?.slice(0, 10) ??
     null;
 
-  async function marcarRecuperado() {
+  // Doação mensal ativa (em dia ou em atraso): pode pedir para parar.
+  const podeDesistir = !visao.recuperado && (podeRecuperar || visao.situacao === 'em_dia');
+
+  async function marcarRecuperado(tipo: 'recuperado' | 'desistiu' = 'recuperado') {
     const sb = supabase();
     const { error } = await sb.from('recuperacoes').insert({
-      doador_id: doador.id, inadimplente_desde: inicioDaInadimplencia(), valor_mensal: principal?.valor ?? null, observacao: obsRecuperacao.trim() || null,
+      doador_id: doador.id, tipo, inadimplente_desde: inicioDaInadimplencia(), valor_mensal: principal?.valor ?? null, observacao: obsRecuperacao.trim() || null,
     });
     if (error) return resultado(error, '');
     // A abordagem acabou: sai das pendências.
     await sb.from('relacionamento').upsert({ doador_id: doador.id, status_conversa: 'resolvido', proximo_contato: null, atualizado_em: new Date().toISOString() });
     setRel((r) => ({ ...r, status_conversa: 'resolvido', proximo_contato: '' }));
     setObsRecuperacao('');
-    resultado(null, 'Marcado como recuperado: saiu das pendências e entrou na conta de recuperados.');
+    resultado(null, tipo === 'desistiu'
+      ? 'Marcado: pediu para parar de doar. Saiu das pendências e do plano. Lembre de cancelar a doação na Trackmob.'
+      : 'Marcado como recuperado: saiu das pendências e entrou na conta de recuperados.');
   }
 
   async function desfazerRecuperado() {
     if (!visao.recuperado) return;
     const { error } = await supabase().from('recuperacoes').delete().eq('id', visao.recuperado.id);
-    resultado(error, 'Recuperação desfeita.');
+    resultado(error, 'Marcação desfeita.');
   }
 
   async function salvarBrinde(status: string) {
@@ -383,10 +388,19 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
           </p>
         )}
 
-        {(podeRecuperar || visao.recuperado) && (
-          <section className="cartao pilha" style={{ gap: 8, borderColor: visao.recuperado ? '#3FA66B' : undefined }}>
-            <strong>Recuperação</strong>
-            {visao.recuperado ? (
+        {(podeRecuperar || podeDesistir || visao.recuperado) && (
+          <section className="cartao pilha" style={{ gap: 8, borderColor: visao.recuperado ? (desistiu(visao.recuperado) ? '#8E9CA3' : '#3FA66B') : undefined }}>
+            <strong>{podeRecuperar || (visao.recuperado && !desistiu(visao.recuperado)) ? 'Recuperação' : 'Doação mensal'}</strong>
+            {desistiu(visao.recuperado) ? (
+              <div className="linha" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span>
+                  ✕ Pediu para parar de doar em {formatarData(visao.recuperado!.recuperado_em)}
+                  {visao.recuperado!.observacao ? ` · ${visao.recuperado!.observacao}` : ''}. Fora das pendências e do plano de doadores.
+                  {visao.situacao !== 'cancelado' ? ' Se ainda não fez, cancele a doação na Trackmob para não seguir cobrando.' : ''}
+                </span>
+                <button type="button" className="botao-link" onClick={desfazerRecuperado}>Desfazer</button>
+              </div>
+            ) : visao.recuperado ? (
               <div className="linha" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>
                   ✓ Recuperado em {formatarData(visao.recuperado.recuperado_em)}
@@ -398,14 +412,17 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
             ) : (
               <>
                 <span className="pequeno suave">
-                  {pagouDepois
+                  {!podeRecuperar
+                    ? 'Se o doador pedir para parar de doar, marque aqui: ele sai do plano de doadores e das fileiras.'
+                    : pagouDepois
                     ? `Voltou a pagar depois da cobrança de ${formatarData(visao.ultimaCobranca!.slice(0, 10))}. Confirme para contar como recuperado.`
                     : 'Quando a abordagem terminar e o doador voltar a doar, marque aqui: ele sai das fileiras de atraso e entra na conta de recuperados.'}
                 </span>
                 <div className="linha" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <input aria-label="Observação da recuperação" placeholder="Observação (opcional): ex.: atualizou o cartão" value={obsRecuperacao}
+                  <input aria-label="Observação" placeholder={podeRecuperar ? 'Observação (opcional): ex.: atualizou o cartão' : 'Motivo (opcional)'} value={obsRecuperacao}
                     onChange={(e) => setObsRecuperacao(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
-                  <button type="button" className="botao" onClick={marcarRecuperado}>Voltou a doar: marcar como recuperado</button>
+                  {podeRecuperar && <button type="button" className="botao" onClick={() => marcarRecuperado('recuperado')}>Voltou a doar: marcar como recuperado</button>}
+                  <button type="button" className="botao secundario" onClick={() => marcarRecuperado('desistiu')}>Pediu para parar de doar</button>
                 </div>
               </>
             )}
