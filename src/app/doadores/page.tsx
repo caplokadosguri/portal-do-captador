@@ -183,8 +183,8 @@ export default function Doadores() {
             <h2 className="titulo-placar">Recuperação de inadimplentes</h2>
             <div className="numeros">
               <div className="numero positivo"><strong>{recuperacao.doadores}</strong><span>Doadores recuperados (voltaram a doar)</span></div>
-              <div className="numero positivo"><strong>{formatarReais(recuperacao.recebido)}</strong><span>Já recebido deles desde que ficaram inadimplentes</span></div>
-              <div className="numero positivo"><strong>{formatarReais(recuperacao.porMes)}</strong><span>Por mês de volta (recuperados que seguem em dia)</span></div>
+              <div className="numero positivo"><strong>{formatarReais(recuperacao.recebido)}</strong><span>Já recebido deles desde que ficaram inadimplentes (pagamentos importados da Trackmob){recuperacao.aguardandoPagamento ? ` · ${recuperacao.aguardandoPagamento} aguardando a próxima importação` : ''}</span></div>
+              <div className="numero positivo"><strong>{formatarReais(recuperacao.porMes)}</strong><span>Por mês de volta (doações mensais dos recuperados)</span></div>
               <div className="numero negativo"><strong>{recuperacao.emAtraso}</strong><span>Em atraso agora · {formatarReais(recuperacao.porMesEmAtraso)}/mês em risco</span></div>
             </div>
           </section>

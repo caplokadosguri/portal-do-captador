@@ -34,6 +34,7 @@ describe('recuperação de inadimplentes', () => {
       { situacao: 'atraso_2', recuperacoes: [], recuperado: null, cobrancas: [], principal: { valor: 30 } },
       { situacao: 'atraso_1', recuperacoes: [rec('2026-11-22')], recuperado: rec('2026-11-22'), cobrancas: [], principal: { valor: 20 } },
     ]);
-    expect(r).toEqual({ doadores: 2, recebido: 100, porMes: 50, emAtraso: 1, porMesEmAtraso: 30 });
+    // O de atraso_1 marcado agora já conta no "por mês", mas ainda espera o pagamento na importação.
+    expect(r).toEqual({ doadores: 2, recebido: 100, porMes: 100, aguardandoPagamento: 1, emAtraso: 1, porMesEmAtraso: 30 });
   });
 });
