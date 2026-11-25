@@ -104,7 +104,8 @@ export async function carregarCarteira(): Promise<Carteira> {
     // Lembretes de marco dispensados sem registrar contato.
     buscarTudo<{ doador_id: string; data_marco: string }>((a, b) =>
       sb.from('marcos_dispensados').select('doador_id,data_marco').gte('data_marco', somarMeses(hoje, -3)).order('doador_id').range(a, b)),
-    buscarTudo<Recuperacao>((a, b) => sb.from('recuperacoes').select('*').order('recuperado_em', { ascending: false }).order('id').range(a, b)),
+    // Sem a tabela (migração 0019 ainda não aplicada), segue sem recuperações em vez de quebrar a tela.
+    buscarTudo<Recuperacao>((a, b) => sb.from('recuperacoes').select('*').order('recuperado_em', { ascending: false }).order('id').range(a, b)).catch(() => [] as Recuperacao[]),
     // Contatos de cobrança recentes: quem voltou a pagar depois deles pede confirmação da recuperação.
     buscarTudo<{ doador_id: string; criado_em: string }>((a, b) =>
       sb.from('contatos').select('doador_id,criado_em').eq('motivo', 'cobranca').gte('criado_em', somarMeses(hoje, -6)).order('criado_em').range(a, b)),
