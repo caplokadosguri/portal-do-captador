@@ -12,7 +12,10 @@ export interface Recuperacao {
   doador_id: string;
   recuperado_em: string;
   inadimplente_desde: string | null;
+  /** Valor mensal com que voltou a doar. */
   valor_mensal: number | null;
+  /** Valor mensal de antes da inadimplência (quando mudou ao voltar). */
+  valor_anterior?: number | null;
   observacao: string | null;
   marcado_por: string;
   criado_em: string;
@@ -60,6 +63,8 @@ export interface ResumoRecuperacao {
   recebido: number;
   /** Doações mensais que voltaram (recuperação valendo ou em dia; não conta cancelados). */
   porMes: number;
+  /** Diferença no valor mensal dos recuperados (novo − anterior), quando mudou ao voltar. */
+  diferencaMensal: number;
   /** Recuperados sem nenhum pagamento importado ainda (aparece na próxima importação da Trackmob). */
   aguardandoPagamento: number;
   /** Pediram para parar de doar (marcação valendo). */
@@ -79,7 +84,7 @@ export function resumoRecuperacao(
     principal: { valor: number | null } | null;
   }[],
 ): ResumoRecuperacao {
-  const r: ResumoRecuperacao = { doadores: 0, recebido: 0, porMes: 0, aguardandoPagamento: 0, desistiram: 0, emAtraso: 0, porMesEmAtraso: 0 };
+  const r: ResumoRecuperacao = { doadores: 0, recebido: 0, porMes: 0, diferencaMensal: 0, aguardandoPagamento: 0, desistiram: 0, emAtraso: 0, porMesEmAtraso: 0 };
   for (const v of visoes) {
     if (desistiu(v.recuperado)) {
       r.desistiram++;
@@ -95,7 +100,9 @@ export function resumoRecuperacao(
       // Conta assim que é marcado (o pagamento só chega na próxima importação), enquanto a marcação valer.
       if (v.situacao !== 'cancelado' && (v.recuperado || v.situacao === 'em_dia')) {
         const ultima = [...recs].sort((a, b) => b.recuperado_em.localeCompare(a.recuperado_em))[0];
-        r.porMes += Number(ultima.valor_mensal ?? v.principal?.valor ?? 0);
+        const agora = Number(ultima.valor_mensal ?? v.principal?.valor ?? 0);
+        r.porMes += agora;
+        if (ultima.valor_anterior != null) r.diferencaMensal += agora - Number(ultima.valor_anterior);
       }
     }
     if (v.situacao.startsWith('atraso') && !v.recuperado) {

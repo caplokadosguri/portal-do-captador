@@ -34,6 +34,14 @@ const CANAIS: [string, string, keyof VisaoDoador['doador'] | null][] = [
 
 interface ContatoRegistrado { id: string; membro: string; canal: string; motivo: string; modelo: string | null; versao?: number | null; resultado: string | null; nota: string | null; criado_em: string }
 
+/** "100", "100,50" ou "R$ 1.234,56" -> número; vazio ou inválido -> null. */
+function valorEmReais(t: string): number | null {
+  const limpo = t.replace(/[^\d,.]/g, '');
+  if (!limpo) return null;
+  const n = Number(limpo.includes(',') ? limpo.replace(/\./g, '').replace(',', '.') : limpo);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Modelo do plano para o marco em que o doador está. */
 const MODELO_DO_MARCO: Record<string, string> = { inicio: 'boas_vindas', renovacao_1: 'renovacao_1', meses_6: 'meses_6', ano_1: 'ano_1' };
 
@@ -143,6 +151,9 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   const [editando, setEditando] = useState<{ id: string; canal: string; motivo: string; resultado: string; nota: string; data: string } | null>(null);
   const [apagando, setApagando] = useState<string | null>(null);
   const [obsRecuperacao, setObsRecuperacao] = useState('');
+  // Valor com que voltou a doar (pode mudar ao voltar da inadimplência).
+  const [valorNovo, setValorNovo] = useState(() => (principal?.valor != null ? String(principal.valor) : ''));
+  const [editandoValor, setEditandoValor] = useState<{ anterior: string; novo: string } | null>(null);
   const [filtro, setFiltro] = useState<MotivoContato | 'todos'>('todos');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
@@ -299,7 +310,10 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
   async function marcarRecuperado(tipo: 'recuperado' | 'desistiu' = 'recuperado') {
     const sb = supabase();
     const { error } = await sb.from('recuperacoes').insert({
-      doador_id: doador.id, tipo, inadimplente_desde: inicioDaInadimplencia(), valor_mensal: principal?.valor ?? null, observacao: obsRecuperacao.trim() || null,
+      doador_id: doador.id, tipo, inadimplente_desde: inicioDaInadimplencia(), observacao: obsRecuperacao.trim() || null,
+      ...(tipo === 'recuperado'
+        ? { valor_mensal: valorEmReais(valorNovo) ?? principal?.valor ?? null, valor_anterior: principal?.valor ?? null }
+        : { valor_mensal: principal?.valor ?? null }),
     });
     if (error) return resultado(error, '');
     // A abordagem acabou: sai das pendências.
@@ -309,6 +323,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
     resultado(null, tipo === 'desistiu'
       ? 'Marcado: pediu para parar de doar. Saiu das pendências e do plano. Lembre de cancelar a doação na Trackmob.'
       : 'Marcado como recuperado: saiu das pendências e entrou na conta de recuperados.');
+  }
+
+  async function salvarValores() {
+    if (!visao.recuperado || !editandoValor) return;
+    const { error } = await supabase().from('recuperacoes').update({
+      valor_anterior: valorEmReais(editandoValor.anterior), valor_mensal: valorEmReais(editandoValor.novo),
+    }).eq('id', visao.recuperado.id);
+    resultado(error, 'Valores da recuperação corrigidos.');
+    if (!error) setEditandoValor(null);
   }
 
   async function desfazerRecuperado() {
@@ -404,10 +427,24 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
               <div className="linha" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>
                   ✓ Recuperado em {formatarData(visao.recuperado.recuperado_em)}
+                  {visao.recuperado.valor_anterior != null && visao.recuperado.valor_mensal != null && Number(visao.recuperado.valor_anterior) !== Number(visao.recuperado.valor_mensal)
+                    ? ` · ${formatarReais(visao.recuperado.valor_anterior)} → ${formatarReais(visao.recuperado.valor_mensal)} por mês`
+                    : visao.recuperado.valor_mensal != null ? ` · ${formatarReais(visao.recuperado.valor_mensal)} por mês` : ''}
                   {visao.recuperado.observacao ? ` · ${visao.recuperado.observacao}` : ''}. Fora das pendências de cobrança
                   {visao.situacao.startsWith('atraso') ? ' até a próxima importação confirmar o pagamento' : ''}.
                 </span>
+                <button type="button" className="botao-link" onClick={() => setEditandoValor({
+                  anterior: String(visao.recuperado!.valor_anterior ?? principal?.valor ?? ''), novo: String(visao.recuperado!.valor_mensal ?? ''),
+                })}>Corrigir valor</button>
                 <button type="button" className="botao-link" onClick={desfazerRecuperado}>Desfazer</button>
+                {editandoValor && (
+                  <div className="linha" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', width: '100%' }}>
+                    <label className="campo">Valor de antes (R$)<input inputMode="decimal" value={editandoValor.anterior} onChange={(e) => setEditandoValor({ ...editandoValor, anterior: e.target.value })} style={{ width: 120 }} /></label>
+                    <label className="campo">Valor agora (R$)<input inputMode="decimal" value={editandoValor.novo} onChange={(e) => setEditandoValor({ ...editandoValor, novo: e.target.value })} style={{ width: 120 }} /></label>
+                    <button type="button" className="botao pequeno" onClick={salvarValores}>Salvar</button>
+                    <button type="button" className="botao secundario pequeno" onClick={() => setEditandoValor(null)}>Cancelar</button>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -418,9 +455,15 @@ export default function FichaDoador({ visao, modelos, dadosDe, hoje, nomeMembro,
                     ? `Voltou a pagar depois da cobrança de ${formatarData(visao.ultimaCobranca!.slice(0, 10))}. Confirme para contar como recuperado.`
                     : 'Quando a abordagem terminar e o doador voltar a doar, marque aqui: ele sai das fileiras de atraso e entra na conta de recuperados.'}
                 </span>
-                <div className="linha" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <div className="linha" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <input aria-label="Observação" placeholder={podeRecuperar ? 'Observação (opcional): ex.: atualizou o cartão' : 'Motivo (opcional)'} value={obsRecuperacao}
                     onChange={(e) => setObsRecuperacao(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+                  {podeRecuperar && (
+                    <label className="campo" title="Se voltou com outro valor, coloque o novo">
+                      Valor mensal ao voltar (R$)
+                      <input inputMode="decimal" value={valorNovo} onChange={(e) => setValorNovo(e.target.value)} style={{ width: 130 }} />
+                    </label>
+                  )}
                   {podeRecuperar && <button type="button" className="botao" onClick={() => marcarRecuperado('recuperado')}>Voltou a doar: marcar como recuperado</button>}
                   <button type="button" className="botao secundario" onClick={() => marcarRecuperado('desistiu')}>Pediu para parar de doar</button>
                 </div>
